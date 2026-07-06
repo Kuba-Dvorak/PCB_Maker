@@ -1,0 +1,62 @@
+<svg width="1100" height="560" viewBox="0 0 1100 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">USB serial command protocol</title>
+  <desc id="desc">Diagram showing basicCMD from nanoComm to Arduino Nano and nanoReport response from Nano back to nanoComm.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#ecfeff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <rect width="1100" height="560" rx="28" fill="url(#bg)"/>
+  <text x="550" y="54" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800" fill="#164e63">USB Serial Protocol</text>
+  <text x="550" y="84" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="15" fill="#475569">nanoComm sends one basicCMD, Nano replies with one report</text>
+
+  <rect x="80" y="155" width="255" height="225" rx="20" fill="#34d399" filter="url(#shadow)"/>
+  <text x="207" y="198" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="800" fill="#064e3b">nanoComm C++</text>
+  <text x="207" y="230" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#065f46">parses complex task</text>
+  <text x="207" y="252" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#065f46">prepares next small command</text>
+  <rect x="118" y="291" width="180" height="52" rx="12" fill="#ecfdf5" stroke="#047857"/>
+  <text x="208" y="323" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#064e3b">waits for report</text>
+
+  <rect x="765" y="155" width="255" height="225" rx="20" fill="#fb7185" filter="url(#shadow)"/>
+  <text x="892" y="198" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="800" fill="#881337">Arduino Nano</text>
+  <text x="892" y="230" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#9f1239">checks limits/endstops</text>
+  <text x="892" y="252" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#9f1239">executes basic movement</text>
+  <rect x="803" y="291" width="180" height="52" rx="12" fill="#fff1f2" stroke="#be123c"/>
+  <text x="893" y="323" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="800" fill="#881337">returns report</text>
+
+  <rect x="420" y="126" width="260" height="140" rx="18" fill="#facc15" filter="url(#shadow)"/>
+  <text x="550" y="163" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#422006">basicCMD</text>
+  <text x="550" y="192" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#713f12">command: uint8</text>
+  <text x="550" y="214" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#713f12">x, y, z: float</text>
+  <text x="550" y="236" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#713f12">speed: float</text>
+
+  <rect x="420" y="329" width="260" height="140" rx="18" fill="#a78bfa" filter="url(#shadow)"/>
+  <text x="550" y="366" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#4c1d95">nanoReport</text>
+  <text x="550" y="395" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#5b21b6">status: ok/busy/done/error</text>
+  <text x="550" y="417" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#5b21b6">error: numeric code</text>
+  <text x="550" y="439" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#5b21b6">position + speed</text>
+
+  <line x1="335" y1="196" x2="412" y2="196" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <line x1="680" y1="196" x2="757" y2="196" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="550" y="112" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#475569">send command</text>
+
+  <line x1="765" y1="399" x2="688" y2="399" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <line x1="420" y1="399" x2="343" y2="399" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="550" y="493" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#475569">reply report</text>
+
+  <rect x="84" y="432" width="300" height="54" rx="14" fill="#ffffff" fill-opacity="0.88" stroke="#99f6e4"/>
+  <text x="106" y="465" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800" fill="#0f172a">Rule:</text>
+  <text x="151" y="465" font-family="Inter, Arial, sans-serif" font-size="14" fill="#334155">do not send next basicCMD before report arrives.</text>
+
+  <rect x="715" y="432" width="300" height="54" rx="14" fill="#ffffff" fill-opacity="0.88" stroke="#fecdd3"/>
+  <text x="736" y="465" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="800" fill="#0f172a">Safety:</text>
+  <text x="793" y="465" font-family="Inter, Arial, sans-serif" font-size="14" fill="#334155">Nano rejects out-of-range movement.</text>
+</svg>

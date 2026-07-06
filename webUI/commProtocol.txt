@@ -1,0 +1,19 @@
+commands:
+
+Position change: 1
+home: 2
+readGcode: 3
+
+emergency codes:
+
+stop: 4
+end: 5
+- will home to position max X, max Y, max Z
+
+nanoReport
+error codes:
+1 - gcode not found
+2 - UART occupied
+
+
+

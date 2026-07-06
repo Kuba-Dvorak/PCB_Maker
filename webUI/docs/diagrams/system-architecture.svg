@@ -1,0 +1,69 @@
+<svg width="1100" height="560" viewBox="0 0 1100 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">CNC PCB system architecture</title>
+  <desc id="desc">Architecture diagram showing Web UI, backend, JSON task queue, nanoComm, USB serial, Arduino Nano, and machine hardware.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#eef7ff"/>
+      <stop offset="100%" stop-color="#f7f4ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1d2b53" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <rect width="1100" height="560" rx="28" fill="url(#bg)"/>
+  <text x="550" y="54" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800" fill="#172554">CNC PCB Web Control Architecture</text>
+  <text x="550" y="84" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="15" fill="#475569">One serial owner, JSON task queue, small Nano commands</text>
+
+  <rect x="55" y="150" width="160" height="95" rx="16" fill="#38bdf8" filter="url(#shadow)"/>
+  <text x="135" y="187" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#082f49">Web UI</text>
+  <text x="135" y="215" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#083344">dashboard, jog, files</text>
+
+  <rect x="282" y="150" width="170" height="95" rx="16" fill="#818cf8" filter="url(#shadow)"/>
+  <text x="367" y="187" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#1e1b4b">Backend</text>
+  <text x="367" y="215" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#312e81">HTTP + task writer</text>
+
+  <rect x="520" y="136" width="180" height="123" rx="18" fill="#facc15" filter="url(#shadow)"/>
+  <text x="610" y="176" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#422006">JSON Queue</text>
+  <text x="610" y="204" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#713f12">initialized</text>
+  <text x="610" y="224" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#713f12">processing</text>
+  <text x="610" y="244" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#713f12">processed / failed</text>
+
+  <rect x="768" y="150" width="170" height="95" rx="16" fill="#34d399" filter="url(#shadow)"/>
+  <text x="853" y="187" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#064e3b">nanoComm</text>
+  <text x="853" y="215" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#065f46">C++ task runner</text>
+
+  <rect x="768" y="354" width="170" height="95" rx="16" fill="#fb7185" filter="url(#shadow)"/>
+  <text x="853" y="391" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#881337">Arduino Nano</text>
+  <text x="853" y="419" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#9f1239">limits + step pulses</text>
+
+  <rect x="520" y="354" width="180" height="95" rx="16" fill="#c084fc" filter="url(#shadow)"/>
+  <text x="610" y="391" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#581c87">Machine</text>
+  <text x="610" y="419" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" fill="#6b21a8">motors, spindle, endstops</text>
+
+  <line x1="215" y1="198" x2="274" y2="198" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="245" y="183" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#475569">HTTP</text>
+
+  <line x1="452" y1="198" x2="512" y2="198" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="482" y="183" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#475569">JSON files</text>
+
+  <line x1="700" y1="198" x2="760" y2="198" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="730" y="183" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#475569">read task</text>
+
+  <line x1="853" y1="245" x2="853" y2="346" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="890" y="302" font-family="Inter, Arial, sans-serif" font-size="12" fill="#475569">USB serial</text>
+
+  <line x1="768" y1="402" x2="708" y2="402" stroke="#334155" stroke-width="5" marker-end="url(#arrow)"/>
+  <text x="738" y="386" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#475569">drivers</text>
+
+  <path d="M938 392 C1010 392 1010 218 946 212" fill="none" stroke="#64748b" stroke-width="3" stroke-dasharray="8 8" marker-end="url(#arrow)"/>
+  <text x="1004" y="304" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#475569">report</text>
+
+  <rect x="70" y="424" width="392" height="62" rx="14" fill="#ffffff" fill-opacity="0.86" stroke="#bae6fd"/>
+  <text x="88" y="451" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="800" fill="#0f172a">Rule:</text>
+  <text x="133" y="451" font-family="Inter, Arial, sans-serif" font-size="15" fill="#334155">only nanoComm opens the USB serial port.</text>
+  <text x="88" y="474" font-family="Inter, Arial, sans-serif" font-size="14" fill="#475569">Backend communicates through task and report JSON files.</text>
+</svg>
