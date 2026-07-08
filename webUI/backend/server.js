@@ -8,6 +8,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 
+
 //finalni lokace se vzdy ziska stylem: queue + inicialized, pro rychlou zmenu pozice backendu nebo jinou zmenu, tak aby stacilo zmenit queue
 const taskQueue = {
     queue: "../taskQueue",
