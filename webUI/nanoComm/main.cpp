@@ -1,5 +1,9 @@
 #include <iostream>
+#include <array>
+#include <cerrno>
+#include <cctype>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -11,7 +15,12 @@
 #include <chrono>
 
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
+#include <unistd.h>
+
+#include <fcntl.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include <nlohmann/json.hpp>
@@ -25,19 +34,40 @@ struct Position {
 };
 
 
+void markString(std::string &curString) {
+    curString += '\n';
+    curString.insert(0, "$");
+}
+
+
 //cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl, cmd 3 = homing
 struct basicCMD {
     uint8_t command;
     Position position;
     float z, speed;
-    float spindlSpeed;
 
-    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1, float spindlSpeed = -1) {
+    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1) {
         this->command = cmd;
         this->position = position;
         this->z = z;
         this->speed = speed;
-        this->spindlSpeed = spindlSpeed;
+    }
+
+    void prepareForNano(char buffer[], size_t bufSize) {
+        std::string prepareString;
+        prepareString += std::to_string(command);
+        prepareString += ';';
+        prepareString += std::to_string(position.x);
+        prepareString += ';';
+        prepareString += std::to_string(position.y);
+        prepareString += ';';
+        prepareString += std::to_string(z);
+        prepareString += ';';
+        prepareString += std::to_string(speed);
+        prepareString += ';';
+        markString(prepareString);
+        std::strncpy(buffer, prepareString.c_str(), bufSize - 1);
+        buffer[bufSize - 1] = '\0';
     }
 };
 
@@ -61,26 +91,187 @@ struct nanoReport {
     }
 };
 
+
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Position, x, y);
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed);
 
 
+float loadNumberForData(int &currentChar, std::string &text) {
+    float oneNumber = 0;
+    float floatinDecimal = 0;
+    bool negativity = false;
+    bool fullNum = false;
+    char curChar = ' ';
+
+    while (currentChar < text.length()) {
+        curChar = text[currentChar];
+        if (std::isdigit(curChar)) {
+            break;
+        }
+
+        if (curChar == '-') {
+            negativity = true;
+        }
+
+        currentChar += 1;
+    }
+
+    while (currentChar < text.length()) {
+        curChar = text[currentChar];
+        if (!(std::isdigit(curChar)) && !(curChar == '.')) {
+            break;
+        }
+
+        if (curChar == '.' && !fullNum) {
+            fullNum = true;
+            currentChar += 1;
+            continue;
+        }
+
+        if (fullNum) {
+            floatinDecimal += 1;
+        }
+
+        oneNumber *= 10;
+        oneNumber += int(curChar - '0');
+        currentChar += 1;
+
+        if (currentChar >= text.length()) {
+            break;
+        }
+    }
+
+    oneNumber /= std::pow(10, floatinDecimal);
+    if (negativity) {
+        oneNumber *= -1;
+    }
+
+    return oneNumber;
+}
+
+
+void datafieng(std::string &curString, nanoReport &changeReport) {
+    int curChar = 0;
+    changeReport.status = loadNumberForData(curChar, curString);
+    if (curString[curChar] == ',') {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.error = loadNumberForData(curChar, curString);
+    if (curString[curChar] == ',') {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.position.x = loadNumberForData(curChar, curString);
+    if (curString[curChar] == ',') {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.position.y = loadNumberForData(curChar, curString);
+    if (curString[curChar] == ',') {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.z = loadNumberForData(curChar, curString);
+    if (curString[curChar] == ',') {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.speed = loadNumberForData(curChar, curString);
+    if (curString[curChar] == ',') {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.spindlSpeed = loadNumberForData(curChar, curString);
+    return;
+}
+
+
 struct uartComm {
-    fs::path port;
+    std::string port;
     bool occupied;
     int baundWith;
+    int serialID;
 
-    uartComm(fs::path port = "", int baundWith = 115200) {
+    uartComm(std::string port = "/dev/ttyUSB0", int baundWith = 9600) {
         this->port = port;
         occupied = false;
         this->baundWith = baundWith;
+        serialID = -1;
+    }
+
+    void startComm() {
+        serialID = open(port.c_str(), O_RDWR | O_NOCTTY);
+
+        if (serialID < 0) {
+            std::cout << "[UART] Unable to connect to port: " << port << ".\n" << std::endl;
+            return;
+        }
+
+        termios tty;
+
+        if (tcgetattr(serialID, &tty) != 0) {
+            std::cout << "[UART] Unable to get port configuration." << std::endl;
+            return;
+        }
+
+        speed_t speed;
+
+        if (baundWith == 115200) {
+            speed = B115200;
+        } else if (baundWith == 9600) {
+            speed = B9600;
+        } else {
+            speed = B9600;
+        }
+
+        cfsetospeed(&tty, speed);
+        cfsetispeed(&tty, speed);
+
+        tty.c_cflag &= ~PARENB;
+        tty.c_cflag &= ~CSTOPB;
+        tty.c_cflag &= ~CSIZE;
+        tty.c_cflag |= CS8;
+
+        tty.c_cflag &= ~CRTSCTS;
+
+        tty.c_cflag |= CREAD | CLOCAL;
+
+        tty.c_lflag &= ~ICANON;
+        tty.c_lflag &= ~ECHO;
+        tty.c_lflag &= ~ISIG;
+        tty.c_oflag &= ~OPOST;
+
+        tty.c_cc[VMIN]  = 0;
+        tty.c_cc[VTIME] = 1;
+
+        if (tcsetattr(serialID, TCSANOW, &tty) != 0) {
+            std::cerr << "[UART] Unable to save port configuration." << std::endl;
+            return;
+        }
+
+        std::cout << "[UART] Port " << port << " succefully open and working." << std::endl;
     }
 
     void sendBasicCMD(basicCMD cmd) {
         (void)cmd;
         occupied = true;
-        //sending data
+        char buffer[64] = {};
+        cmd.prepareForNano(buffer, sizeof(buffer));
+        write(serialID, buffer, 64);
         occupied = false;
     }
 
@@ -88,15 +279,60 @@ struct uartComm {
         if (!occupied) {
             occupied = true;
             nanoReport data = nanoReport(1, 0);
+
+            std::string readBuffer = "";
+            char buffer[64] = {};
+            ssize_t result;
+            bool started = false;
+
             while (true) {
-                //recieving data
-                if (data.status == 0) {
-                    break;
+                result = read(serialID, buffer, 64);
+
+                if (result <= 0) {
+                    close(serialID);
+                    serialID = -1;
+                    std::cout << "[UART] Arduino disconnected while reading command on port " << port << "." << std::endl;
+                    return nanoReport(1, 6);
                 }
+
+                std::string currentData = std::string(buffer, result);
+
+                if (!started) {
+                    size_t startChar = currentData.find('$');
+
+                    if (startChar == std::string::npos) {
+                        std::cout << "[UART] Ignoring data without start marker on port " << port << "." << std::endl;
+                        continue;
+                    }
+
+                    else {
+                        started = true;
+                        currentData.erase(0, startChar + 1);
+                    }
+                }
+
+
+                if (started) {
+                    size_t endChar = currentData.find('\n');
+
+                    if (endChar == std::string::npos) {
+                        readBuffer.append(currentData);
+                        continue;
+                    }
+
+                    else {
+                        currentData.erase(endChar, 64);
+                        readBuffer.append(currentData);
+                        break;
+                    }
+                }
+
             }
             occupied = false;
+            datafieng(readBuffer, data);
             return data;
         }
+        std::cout << "[UART] Cannot listen: UART is already occupied." << std::endl;
         return nanoReport(1, 2);
     }
 };
@@ -148,6 +384,7 @@ struct gcodeDecoder {
 
             if (curChar == '.' && !fullNum) {
                 fullNum = true;
+                currentChar += 1;
                 continue;
             }
 
@@ -179,19 +416,19 @@ struct gcodeDecoder {
             }
 
             else if (curNum == 20) {
-
+                std::cout << "[GCODE] G20 inch units are not implemented yet." << std::endl;
             }
 
             else if (curNum == 21) {
-
+                std::cout << "[GCODE] G21 millimeter units are not implemented yet." << std::endl;
             }
 
             else if (curNum == 90) {
-
+                std::cout << "[GCODE] G90 absolute positioning is not implemented yet." << std::endl;
             }
 
             else if (curNum == 91) {
-
+                std::cout << "[GCODE] G91 relative positioning is not implemented yet." << std::endl;
             }
         }
 
@@ -206,6 +443,7 @@ struct gcodeDecoder {
                 return 4;
             }
         }
+        std::cout << "[GCODE] Unsupported command: " << curChar << curNum << std::endl;
         return 254;
     }
 
@@ -223,7 +461,7 @@ struct gcodeDecoder {
             cmd.speed = number;
         }
         else if (gcodeText[currentChar] == instructionChars[6]) {
-            cmd.spindlSpeed = number;
+            cmd.speed = number;
         }
     }
 
@@ -231,7 +469,9 @@ struct gcodeDecoder {
         bool firstCmd = true;
         basicCMD generatedCMD = basicCMD();
         while (true) {
-            if (gcodeText.length() >= currentChar) {
+            if (gcodeText.length() <= currentChar) {
+                generatedCMD.command = 255;
+                std::cout << "[GCODE] End of G-code reached." << std::endl;
                 break;
             }
 
@@ -257,23 +497,31 @@ struct gcodeDecoder {
 
 struct tcpCommUser {
     int port, serverID, socketID;
+    std::string readBuffer;
+    char startCharr, endCharr, stopCharr, pauseCharr;
 
     tcpCommUser(int port = 5000) {
         this->port = port;
+        serverID = -1;
+        socketID = -1;
+        startCharr = '$';
+        endCharr = '\n';
+        stopCharr = '#';
+        pauseCharr = ';';
     }
 
     void startServer() {
-        sockaddr_in address;
+        sockaddr_in address = sockaddr_in();
         int opt = 1;
 
         serverID = socket(AF_INET, SOCK_STREAM, 0);
-        if (serverID == 0) {
-            std::cerr << "Socket selhal" << std::endl;
+        if (serverID < 0) {
+            std::cerr << "[TCP] Failed to create server socket on port " << port << ": " << std::strerror(errno) << std::endl;
             exit(EXIT_FAILURE);
         }
 
         if (setsockopt(serverID, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-            std::cerr << "Setsockopt selhal" << std::endl;
+            std::cerr << "[TCP] Failed to configure SO_REUSEADDR on port " << port << ": " << std::strerror(errno) << std::endl;
             exit(EXIT_FAILURE);
         }
 
@@ -282,73 +530,176 @@ struct tcpCommUser {
         address.sin_port = htons(port);
 
         if (bind(serverID, (sockaddr*)&address, sizeof(address)) < 0) {
-            std::cerr << "Bind portu selhal" << std::endl;
+            std::cerr << "[TCP] Failed to bind server socket on port " << port << ": " << std::strerror(errno) << std::endl;
             exit(EXIT_FAILURE);
         }
 
         if (listen(serverID, 3) < 0) {
-            std::cerr << "Listen selhal" << std::endl;
+            std::cerr << "[TCP] Failed to listen on port " << port << ": " << std::strerror(errno) << std::endl;
             exit(EXIT_FAILURE);
         }
     }
 
 
     void waitForBackend() {
-        sockaddr_in address;
+        sockaddr_in address = sockaddr_in();
         int addrSize = sizeof(address);
-        std::cout << "Čekám na připojení JS backendu... \n" << std::endl;
+        std::cout << "[TCP] Waiting for backend connection on port " << port << "..." << std::endl;
 
         socketID = accept(serverID, (sockaddr*)&address, (socklen_t*)&addrSize);
 
         if (socketID < 0) {
-            std::cout << "Připojení se nezdařilo \n" << std::endl;
+            std::cout << "[TCP] Backend connection failed on port " << port << ": " << std::strerror(errno) << std::endl;
         }
         else {
-            std::cout << "Připojení se zdařilo \n" << std::endl;
+            std::cout << "[TCP] Backend connected on port " << port << "." << std::endl;
         }
     }
+
 
     void sendData(nanoReport report) {
         if (socketID < 0) {
-            std::cout << "Nepřipojeno \n" << std::endl;
+            std::cout << "[TCP] Cannot send report: backend is not connected on port " << port << "." << std::endl;
             return;
         }
         json rawJson = report;
-        std::string rawText = rawJson.dump(4);
-        const char* buffer = rawText.c_str();
-        ssize_t errorVal = send(socketID, buffer, rawText.length(), 0);
+        std::string rawText = rawJson.dump();
+        rawText.insert(0, "$");
+        rawText += '\n';
 
-        if (errorVal <= 0) {
-            close(socketID);
-            socketID = -1;
-            std::cout << "Spadl backend \n" << std::endl;
-            return;
+        size_t sentBytes = 0;
+        while (sentBytes < rawText.length()) {
+            ssize_t result = send(socketID, rawText.data() + sentBytes, rawText.length() - sentBytes, 0);
+
+            if (result < 0 && errno == EINTR) {
+                std::cout << "[TCP] Send interrupted by signal, retrying on port " << port << "." << std::endl;
+                continue;
+            }
+
+            if (result <= 0) {
+                close(socketID);
+                socketID = -1;
+                std::cout << "[TCP] Backend disconnected while sending report on port " << port << "." << std::endl;
+                return;
+            }
+
+            sentBytes += result;
         }
     }
 
+
     json readData() {
         if (socketID < 0) {
-            std::cout << "Nepřipojeno \n" << std::endl;
+            std::cout << "[TCP] Cannot read command: backend is not connected on port " << port << "." << std::endl;
             return nullptr;
         }
 
-        char sendInfo[1024] = {0};
-        ssize_t errorVal = read(socketID, sendInfo, 1024);
+        readBuffer = "";
+        char buffer[1024] = {};
+        ssize_t result;
+        bool started = false;
 
-        if (errorVal <= 0) {
-            close(socketID);
-            socketID = -1;
-            std::cout << "Spadl backend \n" << std::endl;
-            return nullptr;
+        while (true) {
+            result = read(socketID, buffer, 1024);
+
+            if (result <= 0) {
+                close(socketID);
+                socketID = -1;
+                std::cout << "[TCP] Backend disconnected while reading command on port " << port << "." << std::endl;
+                return nullptr;
+            }
+
+            std::string currentData = std::string(buffer, result);
+
+            if (!started) {
+                size_t startChar = currentData.find(startCharr);
+
+                if (startChar == std::string::npos) {
+                    std::cout << "[TCP] Ignoring data without start marker on port " << port << "." << std::endl;
+                    continue;
+                }
+
+                else {
+                    started = true;
+                    currentData.erase(0, startChar + 1);
+                }
+            }
+
+
+            if (started) {
+                size_t endChar = currentData.find(endCharr);
+
+                if (endChar == std::string::npos) {
+                    readBuffer.append(currentData);
+                    continue;
+                }
+
+                else {
+                    currentData.erase(endChar, 1024);
+                    readBuffer.append(currentData);
+                    break;
+                }
+            }
+
         }
 
         try {
-            std::string text(sendInfo);
-            return json::parse(text);
-        } catch (...) {
-            std::cout << "Backend neposlal json \n" << std::endl;
+            json returnJson = json::parse(readBuffer);
+            return returnJson;
+        } catch (const json::parse_error& error) {
+            std::cout << "[TCP] Invalid JSON command on port " << port << ": " << error.what() << std::endl;
             return nullptr;
         }
+    }
+
+    bool socketHasDataNow(int socketID) {
+        fd_set readSet;
+        FD_ZERO(&readSet);
+        FD_SET(socketID, &readSet);
+
+        timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 0;
+
+        int result = select(socketID + 1, &readSet, nullptr, nullptr, &timeout);
+        if (result < 0) {
+            std::cout << "[TCP] Failed to poll emergency socket on port " << port << ": " << std::strerror(errno) << std::endl;
+        }
+
+        return result > 0 && FD_ISSET(socketID, &readSet);
+    }
+
+
+
+    int readEmergency() {
+        if (socketID < 0) {
+            std::cout << "[TCP] Cannot read emergency command: backend is not connected on port " << port << "." << std::endl;
+            return -1;
+        }
+        char buffer[1024] = {};
+        ssize_t size = 10;
+        int returnValue = 0;
+
+        while (socketHasDataNow(socketID)) {
+            size = read(socketID, buffer, 1024);
+            if (size <= 0) {
+                close(socketID);
+                socketID = -1;
+                std::cout << "[TCP] Backend disconnected while reading emergency command on port " << port << "." << std::endl;
+                return -1;
+            }
+
+            std::string current = std::string(buffer, size);
+            if (current.find(pauseCharr) != std::string::npos && !(returnValue == 5)) {
+                std::cout << "[EMERGENCY] Soft stop requested by backend." << std::endl;
+                returnValue = 4;
+            }
+            if (current.find(stopCharr) != std::string::npos) {
+                std::cout << "[EMERGENCY] End command requested by backend." << std::endl;
+                returnValue = 5;
+            }
+        }
+        return returnValue;
     }
 };
 
@@ -356,42 +707,65 @@ struct tcpCommUser {
 struct communicator {
     uartComm myUART;
     gcodeDecoder myDec;
-    tcpCommUser myFileUser;
+    tcpCommUser myTCPUser;
+    tcpCommUser myEmergencyUser;
+    nanoReport savedReport;
     int rememberedChar;
 
     communicator(fs::path port) {
         this->myUART = uartComm(port);
+        myTCPUser = tcpCommUser(5000);
+        myEmergencyUser = tcpCommUser(5001);
     }
 
+    void setup() {
+        std::cout << "[SETUP] Starting command/report TCP server." << std::endl;
+        try {
+            myTCPUser.startServer();
+            std::cout << "[SETUP] Command/report TCP server started successfully." << std::endl;
+        } catch (...) {
+            std::cout << "[SETUP] Command/report TCP server setup failed." << std::endl;
+            return;
+        }
+        std::cout << "[SETUP] Waiting for backend on port " << myTCPUser.port << "." << std::endl;
+        myTCPUser.waitForBackend();
+        std::cout << "[SETUP] Starting emergency TCP server." << std::endl;
+        try {
+            myEmergencyUser.startServer();
+            std::cout << "[SETUP] Emergency TCP server started successfully." << std::endl;
+        } catch (...) {
+            std::cout << "[SETUP] Emergency TCP server setup failed." << std::endl;
+            return;
+        }
+        std::cout << "[SETUP] Waiting for backend emergency connection on port " << myEmergencyUser.port << "." << std::endl;
+        myEmergencyUser.waitForBackend();
+        std::cout << "[SETUP] TCP communication initialized successfully." << std::endl;
 
-    void determineEmergency(json &emergency, basicCMD &cmd, gcodeDecoder &decoder) {
-        if (emergency["code"].get<int>() == 4) {
-            cmd.command = 4;
-            rememberedChar = decoder.currentChar;
-        }
-        else if (emergency["code"].get<int>() == 5) {
-            cmd.command = 5;
-        }
+        myUART.startComm();
     }
 
 
     bool doGcodeTask(gcodeDecoder &decoder) {
         nanoReport curReport = myUART.listenUART();
-        json message = myFileUser.readData();
-        myFileUser.sendData(curReport);
+        int message = myEmergencyUser.readEmergency();
+        myTCPUser.sendData(curReport);
         basicCMD cmd = decoder.nextInstr();
 
         if (curReport.error != 0) {
+            std::cout << "[UART] Arduino reported error code " << static_cast<int>(curReport.error) << "." << std::endl;
             return false;
         }
 
-        if (!message.is_null() && message.contains("code")) {
-            determineEmergency(message, cmd, decoder);
+        if (message == 4 || message == 5) {
+            std::cout << "[GCODE] Stopping current G-code task because emergency command " << message << " was received." << std::endl;
+            cmd.command = message;
             myUART.sendBasicCMD(cmd);
+            savedReport = curReport;
             return false;
         }
 
         if (cmd.command == 255) {
+            std::cout << "[GCODE] Current G-code task finished." << std::endl;
             return false;
         }
 
@@ -404,13 +778,17 @@ struct communicator {
         myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
         bool advance = true;
         std::ifstream file(gcodePath);
+
         if (!file) {
-            myFileUser.sendData(nanoReport(1, 1));
+            myTCPUser.sendData(nanoReport(1, 1));
+            std::cout << "[GCODE] File does not exist: " << gcodePath << std::endl;
             return;
         }
+
         std::stringstream buffer;
         buffer << file.rdbuf();
         gcodeDecoder decoder = gcodeDecoder(buffer.str());
+
         while (advance) {
             advance = doGcodeTask(decoder);
         }
@@ -419,7 +797,17 @@ struct communicator {
 
     void operateCommunicator() {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        json newestTask = myFileUser.readData();
+        json newestTask = myTCPUser.readData();
+        if (newestTask.is_null()) {
+            std::cout << "[TASK] No valid task received from backend." << std::endl;
+            return;
+        }
+
+        if (!newestTask.contains("cmd") || !newestTask["cmd"].is_number_integer()) {
+            std::cout << "[TASK] Invalid task: missing numeric 'cmd' field." << std::endl;
+            return;
+        }
+
         if (!newestTask.is_null() && newestTask.contains("cmd")) {
             switch (newestTask["cmd"].get<int>()) {
                 case 1: {
@@ -427,6 +815,12 @@ struct communicator {
                         if (newestTask["x"].is_number() && newestTask["y"].is_number() && newestTask["z"].is_number()) {
                             myUART.sendBasicCMD(basicCMD(1, {newestTask["x"].get<float>(), newestTask["y"].get<float>()}, newestTask["z"].get<float>()));
                         }
+                        else {
+                            std::cout << "[TASK] Invalid move task: x, y, and z must be numbers." << std::endl;
+                        }
+                    }
+                    else {
+                        std::cout << "[TASK] Invalid move task: missing x, y, or z field." << std::endl;
                     }
                     break;
                 }
@@ -438,6 +832,12 @@ struct communicator {
                     if (newestTask.contains("path") && newestTask["path"].is_string()) {
                         gcodeSender(newestTask["path"].get<fs::path>());
                     }
+                    else {
+                        std::cout << "[TASK] Invalid G-code task: missing string 'path' field." << std::endl;
+                    }
+                    break;
+                default:
+                    std::cout << "[TASK] Unsupported task command: " << newestTask["cmd"].get<int>() << std::endl;
                     break;
             }
         }
@@ -446,5 +846,11 @@ struct communicator {
 
 
 int main() {
+    communicator myCommunicator = communicator("/dev/ttyUSB0");
+    myCommunicator.setup();
+    while (true) {
+        myCommunicator.operateCommunicator();
+    }
+
     return 0;
 }

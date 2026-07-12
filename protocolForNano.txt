@@ -1,0 +1,3 @@
+$
+cmd: "int", x: "float", y: "float", z: "float", speed: "float"
+\n

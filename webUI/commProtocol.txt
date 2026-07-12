@@ -20,3 +20,9 @@ error codes:
 cmd pro nano:
 cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl, cmd 3 = homing, cmd 4 = homing na MAX vseho 5 - vypni spindl
 
+TCP comm protocol:
+start of message: $
+konec zpravy: /n
+emergency TCP:
+; = stop
+# = end

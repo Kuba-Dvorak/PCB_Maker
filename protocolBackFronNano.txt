@@ -1,0 +1,3 @@
+$
+status: "int", error: "int", x: "float", y: "float", z: "float", speed: "float", spindlSpeed: "float"
+\n
