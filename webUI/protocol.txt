@@ -1,5 +1,0 @@
-
-questions from bckend to c++ will be in incialized -> proccesing -> proccesed (deleted by bckend)
-task for C++ will be in incialized -> processing (deleted by C++)
-emergency in emergency (deleted by C++)
-questions and emergency running in interput and in a different core (paralezition)

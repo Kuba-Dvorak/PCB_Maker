@@ -66,6 +66,10 @@ struct basicCMD {
         prepareString += std::to_string(speed);
         prepareString += ';';
         markString(prepareString);
+        if (prepareString.length() >= bufSize) {
+            std::cout << "[UART] Prepared command is too long for UART buffer and will be truncated. Length: "
+                      << prepareString.length() << ", buffer size: " << bufSize << "." << std::endl;
+        }
         std::strncpy(buffer, prepareString.c_str(), bufSize - 1);
         buffer[bufSize - 1] = '\0';
     }
@@ -150,46 +154,66 @@ float loadNumberForData(int &currentChar, std::string &text) {
     return oneNumber;
 }
 
+bool reportHasDelimiter(const std::string &curString, int curChar, const char *fieldName) {
+    if (curChar >= static_cast<int>(curString.length())) {
+        std::cout << "[UART] Malformed Nano report: missing delimiter after " << fieldName << "." << std::endl;
+        return false;
+    }
+
+    if (curString[curChar] != ',') {
+        std::cout << "[UART] Malformed Nano report: expected ',' after " << fieldName
+                  << ", got '" << curString[curChar] << "'." << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 
 void datafieng(std::string &curString, nanoReport &changeReport) {
+    if (curString.empty()) {
+        std::cout << "[UART] Malformed Nano report: empty payload." << std::endl;
+        return;
+    }
+
     int curChar = 0;
     changeReport.status = loadNumberForData(curChar, curString);
-    if (curString[curChar] == ',') {
+    if (reportHasDelimiter(curString, curChar, "status")) {
         curChar += 1;
     }
     else {
         return;
     }
     changeReport.error = loadNumberForData(curChar, curString);
-    if (curString[curChar] == ',') {
+    if (reportHasDelimiter(curString, curChar, "error")) {
         curChar += 1;
     }
     else {
         return;
     }
     changeReport.position.x = loadNumberForData(curChar, curString);
-    if (curString[curChar] == ',') {
+    if (reportHasDelimiter(curString, curChar, "x")) {
         curChar += 1;
     }
     else {
         return;
     }
     changeReport.position.y = loadNumberForData(curChar, curString);
-    if (curString[curChar] == ',') {
+    if (reportHasDelimiter(curString, curChar, "y")) {
         curChar += 1;
     }
     else {
         return;
     }
     changeReport.z = loadNumberForData(curChar, curString);
-    if (curString[curChar] == ',') {
+    if (reportHasDelimiter(curString, curChar, "z")) {
         curChar += 1;
     }
     else {
         return;
     }
     changeReport.speed = loadNumberForData(curChar, curString);
-    if (curString[curChar] == ',') {
+    if (reportHasDelimiter(curString, curChar, "speed")) {
         curChar += 1;
     }
     else {
@@ -217,14 +241,14 @@ struct uartComm {
         serialID = open(port.c_str(), O_RDWR | O_NOCTTY);
 
         if (serialID < 0) {
-            std::cout << "[UART] Unable to connect to port: " << port << ".\n" << std::endl;
+            std::cout << "[UART] Unable to connect to port " << port << ": " << std::strerror(errno) << "." << std::endl;
             return;
         }
 
         termios tty;
 
         if (tcgetattr(serialID, &tty) != 0) {
-            std::cout << "[UART] Unable to get port configuration." << std::endl;
+            std::cout << "[UART] Unable to get port configuration for " << port << ": " << std::strerror(errno) << "." << std::endl;
             return;
         }
 
@@ -235,6 +259,7 @@ struct uartComm {
         } else if (baundWith == 9600) {
             speed = B9600;
         } else {
+            std::cout << "[UART] Unsupported baud rate " << baundWith << ", falling back to 9600." << std::endl;
             speed = B9600;
         }
 
@@ -259,19 +284,33 @@ struct uartComm {
         tty.c_cc[VTIME] = 1;
 
         if (tcsetattr(serialID, TCSANOW, &tty) != 0) {
-            std::cerr << "[UART] Unable to save port configuration." << std::endl;
+            std::cerr << "[UART] Unable to save port configuration for " << port << ": " << std::strerror(errno) << "." << std::endl;
             return;
         }
 
-        std::cout << "[UART] Port " << port << " succefully open and working." << std::endl;
+        std::cout << "[UART] Port " << port << " successfully opened at " << baundWith << " baud." << std::endl;
     }
 
     void sendBasicCMD(basicCMD cmd) {
         (void)cmd;
         occupied = true;
+
+        if (serialID == -1) {
+            std::cout << "[UART] Cannot send command: serial port is not open." << std::endl;
+            occupied = false;
+            return;
+        }
+        
         char buffer[64] = {};
         cmd.prepareForNano(buffer, sizeof(buffer));
-        write(serialID, buffer, 64);
+        ssize_t result = write(serialID, buffer, sizeof(buffer));
+        if (result < 0) {
+            std::cout << "[UART] Failed to write command to " << port << ": " << std::strerror(errno) << "." << std::endl;
+        }
+        else if (result < static_cast<ssize_t>(sizeof(buffer))) {
+            std::cout << "[UART] Partial command write to " << port << ": wrote " << result
+                      << " of " << sizeof(buffer) << " bytes." << std::endl;
+        }
         occupied = false;
     }
 
@@ -279,6 +318,12 @@ struct uartComm {
         if (!occupied) {
             occupied = true;
             nanoReport data = nanoReport(1, 0);
+
+            if (serialID == -1) {
+                std::cout << "[UART] Cannot listen: serial port is not open." << std::endl;
+                occupied = false;
+                return nanoReport(1, 7);
+            }
 
             std::string readBuffer = "";
             char buffer[64] = {};
@@ -288,9 +333,15 @@ struct uartComm {
             while (true) {
                 result = read(serialID, buffer, 64);
 
-                if (result <= 0) {
+                if (result == 0) {
+                    std::cout << "[UART] Read timeout while waiting for Nano report on " << port << "." << std::endl;
+                    continue;
+                }
+
+                if (result < 0) {
                     close(serialID);
                     serialID = -1;
+                    occupied = false;
                     std::cout << "[UART] Arduino disconnected while reading command on port " << port << "." << std::endl;
                     return nanoReport(1, 6);
                 }
@@ -329,6 +380,7 @@ struct uartComm {
 
             }
             occupied = false;
+            std::cout << "[UART] Received Nano report payload: " << readBuffer << std::endl;
             datafieng(readBuffer, data);
             return data;
         }
@@ -670,7 +722,6 @@ struct tcpCommUser {
     }
 
 
-
     int readEmergency() {
         if (socketID < 0) {
             std::cout << "[TCP] Cannot read emergency command: backend is not connected on port " << port << "." << std::endl;
@@ -796,7 +847,7 @@ struct communicator {
 
 
     void operateCommunicator() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
         json newestTask = myTCPUser.readData();
         if (newestTask.is_null()) {
             std::cout << "[TASK] No valid task received from backend." << std::endl;

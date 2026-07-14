@@ -13,6 +13,11 @@
   "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "fs": "^0.0.1-security",
+    "multer": "^2.2.0",
+    "socket": "^1.1.143",
+    "socket.io": "^4.8.3",
+    "sqlite3": "^6.0.1"
   }
 }

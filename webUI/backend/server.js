@@ -1,71 +1,134 @@
-import fs from "fs/promises"
-import { Interface } from "readline";
-import path from "path";
-
-
-
+const { Interface } = require("readline");
+const path = require("path");
+const { Socket } = require("dgram");
+const fs = require("fs")
 const express = require("express");
 const cors = require("cors");
+const multer = require("multer");
 const app = express();
+const net = require('net');
+const readline = require('readline');
+const sqlite3 = require("sqlite3").verbose();
+const db = new sqlite3.Database("../database/gcodes.db");
 
-
-//finalni lokace se vzdy ziska stylem: queue + inicialized, pro rychlou zmenu pozice backendu nebo jinou zmenu, tak aby stacilo zmenit queue
-const taskQueue = {
-    queue: "../taskQueue",
-    inicialized: "/inicilized",
-    answer: "/answered",
-    emergency: "/emergency"
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 
 app.use(cors());
 app.use(express.json());
+let mainTransmisionSocket;
+let emergencyTransition;
 
-let currentReportID = 0
+async function connectSockets() {
+    mainTransmisionSocket = net.createConnection({ port: 5000 }, () => {
+        console.log('[JS] Connected to main port 5000');
+    });
+
+    await sleep(500);
+
+    emergencyTransition = net.createConnection({ port: 5001 }, () => {
+        console.log('[JS] Connected to main port 5001');
+    });
+
+    mainTransmisionSocket.on('close', () => console.log('[JS] Main connection ended.'));
+    emergencyTransition.on('close', () => console.log('[JS] Emergency connection ended.'));
+
+    mainTransmisionSocket.on('error', (err) => {
+        console.log("[JS] Main socket error:", err.message);
+    });
+
+    emergencyTransition.on('error', (err) => {
+        console.log("[JS] Emergency socket error:", err.message);
+    });
+}
+
+connectSockets()
+
+
+const mainReader = readline.createInterface({input: mainTransmisionSocket})
+
+const gcodeStorage = multer.diskStorage({
+    destination: "../gcodes",
+    filename: (req, file, cb) => {
+        currentGcodeName = file.originalname
+        cb(null, file.originalname);
+    }
+})
+
+
+const gcodeUpload = multer({storage: gcodeStorage})
+
+
 let currentReport = {
-    status: "Not connected",
-    error: "None",
+    status: 2,
+    error: 0,
     x: -1,
     y: -1,
     z: -1,
-    speed: -1
+    speed: -1,
+    spindlSpeed: -1
 }
 
-
-async function createTask(task) {
-    const fileName = `${task.id}.json`;
-    const tmpPath = path.join(path.join(taskQueue.queue, taskQueue.inicialized), `task${task.id}.tmp`);
-    const finalPath = path.join(path.join(taskQueue.queue, taskQueue.inicialized), fileName);
-
-    const jsonText = JSON.stringify(task, null, 2);
-
-    await fs.writeFile(tmpPath, jsonText, "utf8");
-    await fs.rename(tmpPath, finalPath);
-}
+let printUnderGoing = false
+let currentGcodeName = ""
 
 
-async function createEmergency(task) {
-    const fileName = `${task.id}.json`;
-    const tmpPath = path.join(path.join(taskQueue.queue, taskQueue.emergency), `emergency${task.id}.tmp`);
-    const finalPath = path.join(path.join(taskQueue.queue, taskQueue.emergency), fileName);
+mainReader.on('line', (line) => {
+    if (line.startsWith('$')) {
+        const rawText = line.slice(1)
+        try {
+            const message = JSON.parse(rawText);
+            const position = JSON.parse(message.position)
+            console.log('[JS] Recieved report from nano')
+            currentReport.status = message.status
+            currentReport.error = message.error
+            currentReport.x = position.x
+            currentReport.y = position.y
+            currentReport.z = message.z
+            currentReport.speed = message.speed
+            currentReport.spindlSpeed = message.spindlSpeed
 
-    const jsonText = JSON.stringify(task, null, 2);
-
-    await fs.writeFile(tmpPath, jsonText, "utf8");
-    await fs.rename(tmpPath, finalPath);
-}
-
-
-async function readReport(currentID) {
-    const pathToReport = path.join(path.join(taskQueue.queue, taskQueue.answer), `report${currentID}.json`)
-    if (fs.existsSync(pathToReport)) {
-        const text = await fs.readFile(pathToReport, "utf8");
-        fs.unlink(pathToReport)
-        return JSON.parse(text);
-    } 
+        } catch {
+            console.log('[JS] Send message is not a JSON')
+            currentReport.status = 2
+            currentReport.error = 33
+        }
+        return
+    }
 
     else {
-        return null;
+        console.log('[JS] Send message did not contain correct starting symbol')
+        currentReport.status = 2
+        currentReport.error = 34
+        return
+    }
+
+})
+
+
+
+function sendCMD(cmd) {
+    const rawText = JSON.stringify(cmd)
+    mainTransmisionSocket.write(`$${rawText}\n`);
+    console.log('[JS] Send a message')
+}
+
+
+function sendEmergency(emegencyNum) {
+    if (emegencyNum == 4) {
+         emergencyTransition.write(`;`);
+         console.log('[JS] Send an emergency')
+    }
+
+    else if (emegencyNum == 5) {
+         emergencyTransition.write(`#`);
+         console.log('[JS] Send an emergency')
+    }
+
+    else {
+         console.log('[JS] Unknown emergency number')
     }
 }
 
@@ -78,22 +141,56 @@ function sendMistake(code, returnMessage, res) {
 
 
 app.post("/currentPrinterInfo", async (req, res) => {
-
-    const curReport = await readReport(currentReportID)
-    if (curReport !== null) {
-        currentReportID += 1;
-        currentReport = curReport
-    }
     res.json(currentReport)
 })
 
 
-app.post("/uploadGcode", async (req, res) => {
-
+app.post("/uploadGcode", gcodeUpload.single("gcode"), async (req, res) => {
+    console.log(`[JS] Gcode: ${currentGcodeName}, was uploaded`)
+    res.json({
+        answer: "Gcode upload was succefull"
+    })
 })
 
 
+app.post("/newDBGcodeIns", async (req, res) => {
+    const time = req.body.time
+    const size = req.body.size
+    const name = req.body.name
+    let response = "All good, G-code was uploaded"
+    db.run(`INSERT INTO gcodeList (name, date, gsize) VALUES (?, ?, ?)`, [name, time, size], function(err) {
+        if (err) {
+            console.error(err);
+            response = err
+            return;
+        }
+    })
+    res.json({
+        answer: response
+    })
+})
+
+
+
 app.post("/printGcode", async (req, res) => {
+    if (req.body.aprove === 1) {
+        const name = req.body.gcodeName
+        console.log("[JS] Frontend made a gcode print request")
+        res.json({
+            answer: "Print comming ahead"
+        }) 
+    }
+
+    else {
+        console.log("[JS] Frontend made wrong gcode print request")
+        res.json({
+            answer: "Wrong gcode print request json"
+        })
+    }
+})
+
+
+app.post("/deleteGcode", async (req, res) => {
 
 })
 
