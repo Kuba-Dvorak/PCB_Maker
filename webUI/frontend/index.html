@@ -3,30 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#111827">
     <title>CNC control panel</title>
+    <link rel="stylesheet" href="./index.css">
 </head>
 <body>
-    <h1>Frontend placeholder</h1>
-    <h2>Simple controls</h2>
-    <p>Movement</p>
-    <button id="XbuttP">X+</button>
-    <button id="XbuttM">X-</button>
-    <button id="YbuttP">Y+</button>
-    <button id="YbuttM">Y-</button>
-    <button id="ZbuttP">Z+</button>
-    <button id="ZbuttM">Z-</button>
-    <p id="operateAnswer">Result: </p>
-    <h2>Printer status</h2>
-    <p id="Status">Status: </p>
-    <p id="error">Error: </p>
-    <p id="position">X: Y: Z:</p>
-    <p id="speed">speed: </p>
-    <p id="spindlSpeed">spindle speed: </p>
-    <h2>Gcode upload</h2>
-    <input type="file" id="gcodeInput"> <button id="gcodeUpload">upload</button>
-    <p id="uploadSuccesText"></p>
-    <h2>Gcodes list</h2>
-    <div id="GcodeList"></div>
+    <main class="app-shell">
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">C</span>
+                <div>
+                    <p class="eyebrow">PCB Maker</p>
+                    <h1>CNC Control Panel</h1>
+                </div>
+            </div>
+            <div class="connection-indicator">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span>Machine monitor</span>
+            </div>
+        </header>
+
+        <section class="dashboard-grid" aria-label="CNC dashboard">
+            <section class="panel motion-panel" aria-labelledby="motion-title">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Manual control</p>
+                        <h2 id="motion-title">Movement</h2>
+                    </div>
+                    <span class="panel-badge">Jog</span>
+                </div>
+
+                <div class="jog-control" aria-label="Axis movement controls">
+                    <button id="YbuttP" class="jog-button jog-up" type="button" aria-label="Move Y positive">Y+</button>
+                    <button id="XbuttM" class="jog-button jog-left" type="button" aria-label="Move X negative">X−</button>
+                    <div class="jog-center" aria-hidden="true"><span></span></div>
+                    <button id="XbuttP" class="jog-button jog-right" type="button" aria-label="Move X positive">X+</button>
+                    <button id="YbuttM" class="jog-button jog-down" type="button" aria-label="Move Y negative">Y−</button>
+                </div>
+
+                <div class="z-controls">
+                    <span class="axis-label">Z axis</span>
+                    <div class="button-group">
+                        <button id="ZbuttP" class="jog-button jog-compact" type="button">Z+</button>
+                        <button id="ZbuttM" class="jog-button jog-compact" type="button">Z−</button>
+                    </div>
+                </div>
+                <p id="operateAnswer" class="operation-result" role="status">Ready for a command</p>
+            </section>
+
+            <section class="panel status-panel" aria-labelledby="status-title">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Live telemetry</p>
+                        <h2 id="status-title">Printer status</h2>
+                    </div>
+                    <span class="live-label"><i aria-hidden="true"></i> Live</span>
+                </div>
+
+                <div class="status-summary">
+                    <p id="Status">Status: </p>
+                    <p id="error">Error: </p>
+                </div>
+                <div class="telemetry-grid">
+                    <p id="position" class="telemetry-position">X: Y: Z:</p>
+                    <p id="speed">Speed: </p>
+                    <p id="spindlSpeed">Spindle speed: </p>
+                </div>
+            </section>
+
+            <section class="panel upload-panel" aria-labelledby="upload-title">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Job library</p>
+                        <h2 id="upload-title">Upload G-code</h2>
+                    </div>
+                </div>
+                <label class="file-picker" for="gcodeInput">
+                    <span class="file-picker-icon" aria-hidden="true">↑</span>
+                    <span>
+                        <strong>Select a file</strong>
+                        <small>Choose a G-code file from your computer</small>
+                    </span>
+                    <input type="file" id="gcodeInput">
+                </label>
+                <button id="gcodeUpload" class="primary-button" type="button">Upload G-code</button>
+                <p id="uploadSuccesText" class="upload-feedback" role="status"></p>
+            </section>
+
+            <section class="panel gcodes-panel" aria-labelledby="gcodes-title">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Saved jobs</p>
+                        <h2 id="gcodes-title">G-code list</h2>
+                    </div>
+                </div>
+                <div id="GcodeList" class="gcode-list"></div>
+            </section>
+        </section>
+    </main>
+    <script src="./index.js"></script>
 </body>
-<script src="./index.js"></script>
 </html>

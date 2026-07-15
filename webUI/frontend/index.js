@@ -3,18 +3,27 @@ const XForward = document.getElementById("XbuttP")
 const XBackwards = document.getElementById("XbuttM")
 const gcodeUpload = document.getElementById("gcodeUpload")
 const gcodeBackText = document.getElementById("uploadSuccesText")
+
 const printerStatus = document.getElementById("Status")
 const printerError = document.getElementById("error")
 const printerPosition = document.getElementById("position")
 const printerSpeed = document.getElementById("speed")
 const printerSpindlSpeed = document.getElementById("spindlSpeed")
+
 const operationResult = document.getElementById("operateAnswer")
 const gcodeList = document.getElementById("GcodeList")
 const gcodeListArrNames = []
 
-
 /** @type {HTMLInputElement} */
 const gcodeFile = document.getElementById("gcodeInput")
+
+
+window.addEventListener("DOMContentLoaded", () => {
+    loadGcodesFromDB()
+
+    loadNanoReport()
+    setInterval(loadNanoReport, 500)
+})
 
 
 async function rmButFunq (event) {
@@ -22,6 +31,19 @@ async function rmButFunq (event) {
         let curName = event.target.id
         const gcodeName = curName.replace("-remove", "")
         operateGcodeList(gcodeName, 0, 0, "remove")
+        const response = await fetch("http://localhost:3300/deleteGcode", {
+            method: "POST",
+            headers: {
+                "Content-Type" : "application/json"
+            },
+            body: JSON.stringify({
+                aprove: 1,
+                gcodeName: gcodeName
+            })
+        })
+
+        const data = await response.json()
+        responsePlace.textContent = "Response: " + data.answer
 }
 
 
@@ -32,7 +54,7 @@ async function printButFunq (event) {
         const gcodeName = curName.replace("-print", "")
         const responsePlace = document.getElementById(`${gcodeName}-`)
 
-        const response = await fetch("http://localhost:3300/operate", {
+        const response = await fetch("http://localhost:3300/printGcode", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -165,3 +187,58 @@ gcodeUpload.addEventListener("click", async function (event) {
     const data2 = await response.json()
     console.log("DB response:" + data2.answer)
 })
+
+
+async function loadGcodesFromDB() {
+    try {
+        const response = await fetch("http://localhost:3300/gcodeListUpload");
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const gcodes = await response.json();
+
+        gcodeList.innerHTML = "";
+        gcodeListArrNames.length = 0;
+
+        gcodes.forEach(gcode => {
+            operateGcodeList(gcode.name, gcode.date, gcode.gsize, "add");
+        });
+
+        console.log("[FE] Seznam G-kódů úspěšně načten z databáze.");
+    } catch (err) {
+        console.error("[FE] Nepodařilo se načíst G-kódy:", err);
+    }
+}
+
+
+async function loadNanoReport() {
+    const response = await fetch("http://localhost:3300/currentPrinterInfo", {
+        method: "POST",
+        headers: {
+            "Content-Type" : "application/json"
+        }
+    })
+
+    const data = await response.json()
+    let statusContent = "Frontend"
+    let error = "Not connected"
+
+    if (data.status === 0) {
+        statusContent = "Nano"
+    }
+    if (data.status === 1) {
+        statusContent = "C++ communication"
+    }
+    if (data.status === 2) {
+        statusContent = "Backend"
+    }
+
+    // if-else strom na erory
+
+    printerStatus.textContent = "Status: " + statusContent
+    printerError.textContent = "Error" + error
+    printerPosition = `X: ${data.x} | Y: ${data.y} | Z: X: ${data.z}`
+    printerSpeed = "Speed: " + `${data.speed}`
+    printerSpindlSpeed = "Spindle speed: " + `${data.spindlSpeed}`
+}

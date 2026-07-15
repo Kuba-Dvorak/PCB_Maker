@@ -16,7 +16,7 @@ function sleep(ms) {
 }
 
 
-app.use(cors());
+app.use(cors())
 app.use(express.json());
 let mainTransmisionSocket;
 let emergencyTransition;
@@ -145,6 +145,17 @@ app.post("/currentPrinterInfo", async (req, res) => {
 })
 
 
+app.get("/gcodeListUpload", (req, res) => {
+    db.all(`SELECT name, date, gsize FROM gcodeList`, [], (err, rows) => {
+        if (err) {
+            console.error("[JS DB] Error when loading DB:", err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows);
+    });
+});
+
+
 app.post("/uploadGcode", gcodeUpload.single("gcode"), async (req, res) => {
     console.log(`[JS] Gcode: ${currentGcodeName}, was uploaded`)
     res.json({
@@ -191,7 +202,33 @@ app.post("/printGcode", async (req, res) => {
 
 
 app.post("/deleteGcode", async (req, res) => {
+    if (req.body.aprove === 1) {
+        const name = req.body.name
+        db.run(`DELETE FROM gcodeList WHERE name = ?`, [name], function(err) {
+            if (err) {
+                console.error(err);
+                response = err
+                return;
+            }
+        })
+        fs.unlink(`./gcodes/${name}`, (err) => {
+        if (err) {
+            console.error(err)
+            return
+        }
 
+        console.log("[JS] gcode file deleted")
+    })
+        res.json({
+            answer: `Succesufully deleted gcode named: ${name}`
+        })
+    }
+    else {
+        console.log("[JS] Frontend made wrong gcode delete request")
+        res.json({
+            answer: "Wrong gcode print request json"
+        })
+    }
 })
 
 
