@@ -14,6 +14,11 @@ nanoReport
 error codes:
 1 - gcode not found
 2 - UART occupied
+3 - by nano: bad message
+4 - by nano: ping response
+5 - by nano: unknown command
+6 - by nano: position out of range (clamped)
+7 - by nano: endstop hit
 
 
 
@@ -26,3 +31,4 @@ konec zpravy: /n
 emergency TCP:
 ; = stop
 # = end
+| = continue

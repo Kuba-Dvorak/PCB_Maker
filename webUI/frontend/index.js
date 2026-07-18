@@ -38,12 +38,9 @@ async function rmButFunq (event) {
             },
             body: JSON.stringify({
                 aprove: 1,
-                gcodeName: gcodeName
+                name: gcodeName
             })
         })
-
-        const data = await response.json()
-        responsePlace.textContent = "Response: " + data.answer
 }
 
 
@@ -52,7 +49,7 @@ async function printButFunq (event) {
 
         let curName = event.target.id
         const gcodeName = curName.replace("-print", "")
-        const responsePlace = document.getElementById(`${gcodeName}-`)
+        const responsePlace = document.getElementById(`${gcodeName}-response`)
 
         const response = await fetch("http://localhost:3300/printGcode", {
             method: "POST",

@@ -75,7 +75,6 @@ struct basicCMD {
     }
 };
 
-
 // error 0 = ok, error 1 = neco ....
 // status 0 = zprava od nana, status 1 = zprava od nanoComm
 struct nanoReport {
@@ -168,7 +167,6 @@ bool reportHasDelimiter(const std::string &curString, int curChar, const char *f
 
     return true;
 }
-
 
 void datafieng(std::string &curString, nanoReport &changeReport) {
     if (curString.empty()) {
@@ -392,12 +390,13 @@ struct uartComm {
 
 struct gcodeDecoder {
     std::string gcodeText;
-    size_t currentChar = 0;
+    size_t currentChar;
     std::array<char, 2> commandChars = {'G', 'M'};
     std::array<char, 7> instructionChars = {'X', 'Y', 'Z', 'I', 'J', 'F', 'S'};
 
-    gcodeDecoder(std::string gcodeText = "") {
+    gcodeDecoder(std::string gcodeText = "", size_t currentChar = 0) {
         this->gcodeText = gcodeText;
+        this->currentChar = currentChar;
     }
 
     bool contains() {
@@ -463,6 +462,9 @@ struct gcodeDecoder {
 
     int determineCMD(char curChar, int curNum) {
         if (curChar == 'G') {
+            if (curNum == 1) {
+                return 5;
+            }
             if (curNum == 1) {
                 return 1;
             }
@@ -761,12 +763,14 @@ struct communicator {
     tcpCommUser myTCPUser;
     tcpCommUser myEmergencyUser;
     nanoReport savedReport;
-    int rememberedChar;
+    bool homed;
+    size_t rememberedChar = 0;
 
     communicator(fs::path port) {
         this->myUART = uartComm(port);
         myTCPUser = tcpCommUser(5000);
         myEmergencyUser = tcpCommUser(5001);
+        homed = false;
     }
 
     void setup() {
@@ -802,7 +806,7 @@ struct communicator {
         myTCPUser.sendData(curReport);
         basicCMD cmd = decoder.nextInstr();
 
-        if (curReport.error != 0) {
+        if (curReport.error != 0 && curReport.error != 4) {
             std::cout << "[UART] Arduino reported error code " << static_cast<int>(curReport.error) << "." << std::endl;
             return false;
         }
@@ -811,7 +815,11 @@ struct communicator {
             std::cout << "[GCODE] Stopping current G-code task because emergency command " << message << " was received." << std::endl;
             cmd.command = message;
             myUART.sendBasicCMD(cmd);
-            savedReport = curReport;
+            rememberedChar = 0;
+            if (message == 4) {
+                rememberedChar = decoder.currentChar;
+                savedReport = curReport;
+            }
             return false;
         }
 
@@ -838,7 +846,7 @@ struct communicator {
 
         std::stringstream buffer;
         buffer << file.rdbuf();
-        gcodeDecoder decoder = gcodeDecoder(buffer.str());
+        gcodeDecoder decoder = gcodeDecoder(buffer.str(), rememberedChar);
 
         while (advance) {
             advance = doGcodeTask(decoder);
@@ -864,7 +872,13 @@ struct communicator {
                 case 1: {
                     if (newestTask.contains("x") && newestTask.contains("y") && newestTask.contains("z")) {
                         if (newestTask["x"].is_number() && newestTask["y"].is_number() && newestTask["z"].is_number()) {
-                            myUART.sendBasicCMD(basicCMD(1, {newestTask["x"].get<float>(), newestTask["y"].get<float>()}, newestTask["z"].get<float>()));
+                            if (homed) {
+                                myUART.sendBasicCMD(basicCMD(1, {newestTask["x"].get<float>(), newestTask["y"].get<float>()}, newestTask["z"].get<float>()));
+                            }
+
+                            else {
+                                std::cout << "[TASK] Invalid move task: machine not homed." << std::endl;
+                            }
                         }
                         else {
                             std::cout << "[TASK] Invalid move task: x, y, and z must be numbers." << std::endl;
@@ -902,6 +916,5 @@ int main() {
     while (true) {
         myCommunicator.operateCommunicator();
     }
-
     return 0;
 }

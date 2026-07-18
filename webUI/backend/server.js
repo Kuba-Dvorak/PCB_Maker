@@ -91,7 +91,7 @@ mainReader.on('line', (line) => {
             currentReport.spindlSpeed = message.spindlSpeed
 
         } catch {
-            console.log('[JS] Send message is not a JSON')
+            console.log('[JS] Sent message from C++ is not a JSON')
             currentReport.status = 2
             currentReport.error = 33
         }
@@ -99,14 +99,13 @@ mainReader.on('line', (line) => {
     }
 
     else {
-        console.log('[JS] Send message did not contain correct starting symbol')
+        console.log('[JS] Sent message from C++ did not contain correct starting symbol')
         currentReport.status = 2
         currentReport.error = 34
         return
     }
 
 })
-
 
 
 function sendCMD(cmd) {
@@ -182,11 +181,16 @@ app.post("/newDBGcodeIns", async (req, res) => {
 })
 
 
-
+// DULEZITE print je ted nakonfigurovany na to ze C++ je kompilovane v cmaku, ktery udela pod slozku v slozce nanoComm
+//PROTO je ../../gcodes a ne ../gcodes, pokud doslo k zmene, nebo se nekompiluje z podslozky, tak zmenit!!!
 app.post("/printGcode", async (req, res) => {
     if (req.body.aprove === 1) {
         const name = req.body.gcodeName
-        console.log("[JS] Frontend made a gcode print request")
+        console.log("[JS] Frontend made a gcode print request named: " + name)
+        sendCMD({
+            cmd: 3,
+            path: `../../gcodes/${name}`
+        })
         res.json({
             answer: "Print comming ahead"
         }) 
@@ -211,7 +215,7 @@ app.post("/deleteGcode", async (req, res) => {
                 return;
             }
         })
-        fs.unlink(`./gcodes/${name}`, (err) => {
+        fs.unlink(`../gcodes/${name}`, (err) => {
         if (err) {
             console.error(err)
             return
