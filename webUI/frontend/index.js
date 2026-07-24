@@ -12,6 +12,7 @@ const printerSpindlSpeed = document.getElementById("spindlSpeed")
 
 const operationResult = document.getElementById("operateAnswer")
 const gcodeList = document.getElementById("GcodeList")
+const emergencyResult = document.getElementById("EmergencyID")
 const gcodeListArrNames = []
 
 /** @type {HTMLInputElement} */
@@ -24,6 +25,74 @@ window.addEventListener("DOMContentLoaded", () => {
     loadNanoReport()
     setInterval(loadNanoReport, 500)
 })
+
+
+async function stopButton(event) {
+    event.preventDefault()
+    const response = await fetch("http://localhost:3300/emergency", {
+        method: "POST",
+        headers: {
+            "Content-Type" : "application/json"
+        },
+        body: JSON.stringify({
+            cmd: "Stop"
+        })
+    })
+
+    const data = await response.json()
+    emergencyResult.textContent = data.answer
+}
+
+
+async function homeButton(event) {
+    event.preventDefault()
+    const response = await fetch("http://localhost:3300/home", {
+        method: "POST",
+        headers: {
+            "Content-Type" : "application/json"
+        },
+        body: JSON.stringify({
+            cmd: "min"
+        })
+    })
+
+    const data = await response.json()
+    //emergencyResult.textContent = data.answer
+}
+
+
+async function pauseButton(event) {
+    event.preventDefault()
+    const response = await fetch("http://localhost:3300/emergency", {
+        method: "POST",
+        headers: {
+            "Content-Type" : "application/json"
+        },
+        body: JSON.stringify({
+            cmd: "Pause"
+        })
+    })
+
+    const data = await response.json()
+    emergencyResult.textContent = data.answer
+}
+
+
+async function continueButton(event) {
+    event.preventDefault()
+    const response = await fetch("http://localhost:3300/emergency", {
+        method: "POST",
+        headers: {
+            "Content-Type" : "application/json"
+        },
+        body: JSON.stringify({
+            cmd: "Continue"
+        })
+    })
+
+    const data = await response.json()
+    emergencyResult.textContent = data.answer
+}
 
 
 async function rmButFunq (event) {

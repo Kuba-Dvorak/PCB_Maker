@@ -23,17 +23,19 @@ struct Position {
     float x, y;
 };
 
-//cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl, cmd 3 = homing, cmd 4 = homing na MAX vseho, cmd 5 zvednout pak jet, cmd 6 move Z
+//cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl,
+//cmd 3 = homing, cmd 4 = homing na MAX vseho, cmd 5 zvednout pak jet, cmd 6 stop spindl, cmd 7 konec
 struct basicCMD {
     uint8_t command;
     Position position;
-    float z, speed;
+    float z, speed, spindleSpeed;
 
-    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1) {
+    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1, float spindleSpeed = -1) {
         this->command = cmd;
         this->position = position;
         this->z = z;
         this->speed = speed;
+        this->spindleSpeed = spindleSpeed;
     }
 };
 
@@ -57,7 +59,7 @@ struct nanoReport {
     }
 
     void prepareForRPI(char buffer[], size_t bufSize) {
-        int offset = 0;
+        int offset = 1;
         buffer[0] = '$';
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", status);
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", error);
@@ -65,13 +67,14 @@ struct nanoReport {
         offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", position.y);
         offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", z);
         offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", speed);
+        offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", spindleSpeed);
 
         if (offset >= (int)bufSize) {
-            offset = bufSize - 1;
-            buffer[offset++] = '\n';
-            buffer[offset] = '\0';
+            offset = bufSize - 2;
         }
 
+        buffer[offset++] = '\n';
+        buffer[offset] = '\0';
     }
 };
 
@@ -146,8 +149,9 @@ struct calibration {
     uint8_t presetTCCR1B;
     uint8_t clockX, clockY, clockZ;
     long masterFreq;
-    int finishedJob = 0;
+    uint8_t finishedJob = 0;
     uint8_t currentError = 0;
+    bool homed = false;
     
     calibration(uint16_t maxSpeedX = MAX_SPEED, uint16_t maxSpeedY = MAX_SPEED, uint16_t maxSpeedZ = MAX_SPEED,
                 uint8_t pulleyNumTeeth = PULLEY_TEETH, uint8_t jumperDown = JUMPER, uint8_t leadT8 = LEAD_T8, uint8_t maxX = MAX_X, uint8_t maxY = MAX_Y, uint8_t maxZ = MAX_Z) {
@@ -314,6 +318,7 @@ void interuptX() {
     if (!(*myCalib.motorX.portESF & myCalib.motorX.endStopFrontPin) || !(*myCalib.motorX.portESE & myCalib.motorX.endStopEndPin) || myCalib.curStepX >= myCalib.maxStepX) {
         myCalib.endFreqX();
         myCalib.finishedJob += 1;
+        myCalib.curStepX = 0;
         if (!(*myCalib.motorX.portESF & myCalib.motorX.endStopFrontPin)) {
             myCalib.motorX.moveAwayFromEndStop(true);
             myCalib.finishedJob = 22;
@@ -329,6 +334,7 @@ void interuptX() {
         *myCalib.motorX.portStep |= (myCalib.motorX.stepPin);
         delayMicroseconds(myCalib.stepTime);
         *myCalib.motorX.portStep &= ~(myCalib.motorX.stepPin);
+        myCalib.curStepX += 1;
         return;
     }
 }
@@ -338,6 +344,7 @@ void interuptY() {
     if (!(*myCalib.motorY.portESF & myCalib.motorY.endStopFrontPin) || !(*myCalib.motorY.portESE & myCalib.motorY.endStopEndPin) || myCalib.curStepY >= myCalib.maxStepY) {
         myCalib.endFreqY();
         myCalib.finishedJob += 1;
+        myCalib.curStepY = 0;
         if (!(*myCalib.motorY.portESF & myCalib.motorY.endStopFrontPin)) {
             myCalib.motorY.moveAwayFromEndStop(true);
             myCalib.finishedJob = 22;
@@ -353,6 +360,7 @@ void interuptY() {
         *myCalib.motorY.portStep |= (myCalib.motorY.stepPin);
         delayMicroseconds(myCalib.stepTime);
         *myCalib.motorY.portStep &= ~(myCalib.motorY.stepPin);
+        myCalib.curStepY += 1;
         return;
     }
 }
@@ -362,6 +370,7 @@ void interuptZ() {
     if (!(*myCalib.motorZ.portESF & myCalib.motorZ.endStopFrontPin) || !(*myCalib.motorZ.portESE & myCalib.motorZ.endStopEndPin) || myCalib.curStepZ >= myCalib.maxStepZ) {
         myCalib.endFreqZ();
         myCalib.finishedJob = 2;
+        myCalib.curStepZ = 0;
         if (!(*myCalib.motorZ.portESF & myCalib.motorZ.endStopFrontPin)) {
             myCalib.motorZ.moveAwayFromEndStop(true);
             myCalib.finishedJob = 22;
@@ -374,9 +383,10 @@ void interuptZ() {
     }
 
     else {
-        *myCalib.motorZ.portStep |= (1 << myCalib.motorZ.stepPin);
+        *myCalib.motorZ.portStep |= myCalib.motorZ.stepPin;
         delayMicroseconds(myCalib.stepTime);
-        *myCalib.motorZ.portStep &= ~(1 << myCalib.motorZ.stepPin);
+        *myCalib.motorZ.portStep &= ~(myCalib.motorZ.stepPin);
+        myCalib.curStepZ += 1;
         return;
     }
 }
@@ -484,7 +494,6 @@ struct cnc {
     char cmdBuf[64] = {};
     nanoReport report;
     basicCMD cmd;
-    bool homed;
 
     cnc(std::array<uint8_t, 7> motorPins, std::array<uint8_t, 6> endStop, uint16_t maxSpindlSpeed = 20000) {
         this->motorPins = motorPins;
@@ -494,15 +503,15 @@ struct cnc {
     }
 
     void initialate() {
-        Serial.begin(9600);
+        Serial.begin(115200);
         timer1Start();
         myCalib.setupPins(motorPins[0],motorPins[1],motorPins[2],endStop[0],endStop[1],
             motorPins[3],motorPins[4],endStop[2],endStop[3],motorPins[5],motorPins[6],endStop[4],endStop[5]);
         digitalWrite(myCalib.enablePin, LOW);
         myCalib.finishedJob = 0;
-        attachInterrupt(digitalPinToInterrupt(EMERGENCY_PIN), emergencyButtonInterupt, RISING);
+        pinMode(EMERGENCY_PIN, INPUT_PULLUP);
+        attachInterrupt(digitalPinToInterrupt(EMERGENCY_PIN), emergencyButtonInterupt, FALLING);
     }
-
 
     void operateCMD5(basicCMD &cmd) {
         controlSpindl(0);
@@ -511,10 +520,11 @@ struct cnc {
     }
 
     void home(bool dir) {
+        myCalib.finishedJob = 0;
         controlSpindl(0);
-        myCalib.maxStepZ = 1;
-        myCalib.maxStepY = 1;
-        myCalib.maxStepX = 1;
+        myCalib.maxStepZ = 32000;
+        myCalib.maxStepY = 32000;
+        myCalib.maxStepX = 32000;
         if (dir) {
             digitalWrite(myCalib.motorX.dirPin, HIGH);
             digitalWrite(myCalib.motorY.dirPin, HIGH);
@@ -532,11 +542,13 @@ struct cnc {
             //waiting for interupts to
         }
 
+        myCalib.finishedJob = 0;
         myCalib.setupFreqY(myCalib.maxSpeedY);
         while (myCalib.finishedJob < 1) {
             //waiting for interupts to
         }
 
+        myCalib.finishedJob = 0;
         myCalib.setupFreqX(myCalib.maxSpeedX);
         while (myCalib.finishedJob < 1) {
             //waiting for interupts to
@@ -554,7 +566,7 @@ struct cnc {
             myToolHead.position.y = 0;
             myToolHead.z = 0;
         }
-        homed = true;
+        myCalib.homed = true;
     }
 
     void clampLocation(Position &location) {
@@ -592,11 +604,16 @@ struct cnc {
     }
 
     void operateInstr() {
+        myCalib.finishedJob = 0;
         myCalib.currentError = 0;
         basicCMD cmd = loadCMD();
 
-        if (!(cmd.speed == -1)) {
+        if (!(cmd.speed == -1) && (cmd.command != 2)) {
             myToolHead.speed = cmd.speed;
+        }
+
+        if (!(cmd.spindleSpeed == -1) && (cmd.command != 6)) {
+            controlSpindl(cmd.spindleSpeed);
         }
 
         if (cmd.command == 1) {
@@ -605,6 +622,10 @@ struct cnc {
 
         else if (cmd.command == 0) {
             myCalib.currentError = 4;
+        }
+
+        else if (cmd.command == 2) {
+            controlSpindl(cmd.spindleSpeed);
         }
 
         else if (cmd.command == 5) {
@@ -619,12 +640,22 @@ struct cnc {
             home(true);
         }
 
+        else if (cmd.command == 6) {
+            controlSpindl(0);
+        }
+
+        else if (cmd.command == 7 || cmd.command == 255) {
+            controlSpindl(0);
+            home(true);
+            myCalib.currentError = 8;
+        }
+
         else if (cmd.command == 25) {
             myCalib.currentError = 3;
         }
 
         else {
-            myCalib.currentError = 4;
+            myCalib.currentError = 5;
         }
 
         report = nanoReport(0, myCalib.currentError, {myToolHead.position.x, myToolHead.position.y,}, myToolHead.z, myToolHead.speed, myToolHead.spindleSpeed);
@@ -634,9 +665,9 @@ struct cnc {
     basicCMD loadCMD() {
         basicCMD returningCMD = basicCMD();
         size_t len;
-        cmdBuf[64] = {};
+        memset(cmdBuf, 0, sizeof(cmdBuf));
         if (Serial.find('$')) {
-            len = Serial.readBytesUntil('\n', cmdBuf, 64);
+            len = Serial.readBytesUntil('\n', cmdBuf, 63);
             cmdBuf[len] = '\0';
             int curChar = 0;
             returningCMD.command = loadNum(cmdBuf, len, curChar);
@@ -678,32 +709,45 @@ struct cnc {
             }
 
             returningCMD.speed = loadNum(cmdBuf, len, curChar);
+
+            if (cmdBuf[curChar] == ';') {
+                curChar += 1;
+            }
+
+            else {
+                return basicCMD(25);
+            }
+
+            returningCMD.spindleSpeed = loadNum(cmdBuf, len, curChar);
+
         }
         return returningCMD;
     }
 
     void sendNanoReport() {
-        cmdBuf[64] = {};
+        memset(cmdBuf, 0, sizeof(cmdBuf));
         report.prepareForRPI(cmdBuf, 64);
         Serial.write(cmdBuf, 64);
     }
 
     void moveZ(float z) {
+        myCalib.finishedJob = 0;
         if (z == -1) {
             z = myToolHead.z;
         }
         clampZ(z);
 
         if (z >= myToolHead.z) {
-            digitalWrite(motorPins[7], HIGH);
+            digitalWrite(myCalib.motorZ.dirPin, HIGH);
         }
 
         else {
-            digitalWrite(motorPins[7], LOW);
+            digitalWrite(myCalib.motorZ.dirPin, LOW);
         }
         float lenghtZ = z - myToolHead.z;
         myCalib.maxStepZ = abs(myCalib.stepLenghtT8 * lenghtZ);
-        int freqZ = int(myCalib.stepLenghtT8 / myToolHead.speed);
+        float totalTimeZ = abs(lenghtZ) / myToolHead.speed;
+        int freqZ = int(myCalib.maxStepZ / totalTimeZ);
 
         if (lenghtZ != 0) {
             myCalib.setupFreqZ(freqZ);
@@ -714,7 +758,7 @@ struct cnc {
         }
 
         if (myCalib.finishedJob == 22) {
-            homed = false;
+            myCalib.homed = false;
             myCalib.currentError = 7;
         }
 
@@ -722,6 +766,7 @@ struct cnc {
     }
 
     void move2D(Position location) {
+        myCalib.finishedJob = 0;
         if (location.x == -1) {
             location.x = myToolHead.position.x;
         }
@@ -760,7 +805,7 @@ struct cnc {
             myCalib.setupFreqX(freqX);
         }
         if (lenghtY != 0) {
-            myCalib.setupFreqX(freqY);
+            myCalib.setupFreqY(freqY);
         }
 
         while (myCalib.finishedJob < 2) {
@@ -768,16 +813,19 @@ struct cnc {
         }
 
         if (myCalib.finishedJob == 22) {
-            homed = false;
+            myCalib.homed = false;
             myCalib.currentError = 7;
         }
 
         myToolHead.position = location;
     }
 
-    void controlSpindl(uint8_t speed) {
+    void controlSpindl(int speed) {
+        if (speed == -1) {
+            return;
+        }
         if (spindlON) {
-            speed = (uint8_t)((float)speed * conversionConst);
+            speed = (int)((float)speed * conversionConst);
             if (speed <= 0) {
                 digitalWrite(spindlPin, LOW);
             }

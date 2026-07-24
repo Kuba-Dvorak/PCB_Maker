@@ -22,16 +22,15 @@ let mainTransmisionSocket;
 let emergencyTransition;
 
 async function connectSockets() {
-    mainTransmisionSocket = net.createConnection({ port: 5000 }, () => {
-        console.log('[JS] Connected to main port 5000');
+     emergencyTransition = net.createConnection({ port: 5001 }, () => {
+        console.log('[JS] Connected to main port 5001');
     });
 
     await sleep(500);
 
-    emergencyTransition = net.createConnection({ port: 5001 }, () => {
-        console.log('[JS] Connected to main port 5001');
+    mainTransmisionSocket = net.createConnection({ port: 5000 }, () => {
+        console.log('[JS] Connected to main port 5000');
     });
-
     mainTransmisionSocket.on('close', () => console.log('[JS] Main connection ended.'));
     emergencyTransition.on('close', () => console.log('[JS] Emergency connection ended.'));
 
@@ -123,6 +122,11 @@ function sendEmergency(emegencyNum) {
 
     else if (emegencyNum == 5) {
          emergencyTransition.write(`#`);
+         console.log('[JS] Send an emergency')
+    }
+
+    else if (emegencyNum == 6) {
+        emergencyTransition.write(`|`);
          console.log('[JS] Send an emergency')
     }
 
@@ -242,12 +246,48 @@ app.post("/operate", async (req, res) => {
 
 
 app.post("/home", async (req, res) => {
-
+    if (req.body.cmd === "min") {
+        sendCMD({
+            cmd: 2
+        })
+    }
+    
+    else if (req.body.cmd === "max") {
+        sendCMD({
+            cmd: 4
+        })
+    }
 })
 
 
 app.post("/emergency", async (req, res) => {
+    if (req.body.cmd === "Pause") {
+        sendEmergency(4)
+        res.json({
+            answer: "Pause sent"
+        })
+    }
+
+    else if (req.body.cmd === "Stop") {
+        sendEmergency(5)
+        res.json({
+            answer: "Stop sent"
+        })
+    }
     
+    else if (req.body.cmd === "Continue") {
+        sendEmergency(6)
+        res.json({
+            answer: "Continue sent"
+        })
+    }
+
+    else {
+        console.log("[JS] Unknown command")
+        res.json({
+            answer: "Unknown command"
+        })
+    }
 })
 
 

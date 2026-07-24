@@ -3,6 +3,7 @@ commands:
 Position change: 1
 home: 2
 readGcode: 3
+home max: 4
 
 emergency codes:
 
@@ -18,12 +19,12 @@ error codes:
 4 - by nano: ping response
 5 - by nano: unknown command
 6 - by nano: position out of range (clamped)
-7 - by nano: endstop hit
+7 - by nano: endstop hit & not homed
 
 
 
 cmd pro nano:
-cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl, cmd 3 = homing, cmd 4 = homing na MAX vseho 5 - vypni spindl
+//cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl, cmd 3 = homing, cmd 4 = homing na MAX vseho, cmd 5 zvednout pak jet, cmd 6 move Z
 
 TCP comm protocol:
 start of message: $

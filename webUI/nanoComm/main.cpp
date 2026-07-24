@@ -44,13 +44,14 @@ void markString(std::string &curString) {
 struct basicCMD {
     uint8_t command;
     Position position;
-    float z, speed;
+    float z, speed, spindleSpeed;
 
-    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1) {
+    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1, float spindleSpeed = -1) {
         this->command = cmd;
         this->position = position;
         this->z = z;
         this->speed = speed;
+        this->spindleSpeed = spindleSpeed;
     }
 
     void prepareForNano(char buffer[], size_t bufSize) {
@@ -64,6 +65,8 @@ struct basicCMD {
         prepareString += std::to_string(z);
         prepareString += ';';
         prepareString += std::to_string(speed);
+        prepareString += ';';
+        prepareString += std::to_string(spindleSpeed);
         prepareString += ';';
         markString(prepareString);
         if (prepareString.length() >= bufSize) {
@@ -153,20 +156,22 @@ float loadNumberForData(int &currentChar, std::string &text) {
     return oneNumber;
 }
 
+
 bool reportHasDelimiter(const std::string &curString, int curChar, const char *fieldName) {
     if (curChar >= static_cast<int>(curString.length())) {
         std::cout << "[UART] Malformed Nano report: missing delimiter after " << fieldName << "." << std::endl;
         return false;
     }
 
-    if (curString[curChar] != ',') {
-        std::cout << "[UART] Malformed Nano report: expected ',' after " << fieldName
+    if (curString[curChar] != ';') {
+        std::cout << "[UART] Malformed Nano report: expected ';' after " << fieldName
                   << ", got '" << curString[curChar] << "'." << std::endl;
         return false;
     }
 
     return true;
 }
+
 
 void datafieng(std::string &curString, nanoReport &changeReport) {
     if (curString.empty()) {
@@ -175,14 +180,14 @@ void datafieng(std::string &curString, nanoReport &changeReport) {
     }
 
     int curChar = 0;
-    changeReport.status = loadNumberForData(curChar, curString);
+    changeReport.status = int(loadNumberForData(curChar, curString));
     if (reportHasDelimiter(curString, curChar, "status")) {
         curChar += 1;
     }
     else {
         return;
     }
-    changeReport.error = loadNumberForData(curChar, curString);
+    changeReport.error = int(loadNumberForData(curChar, curString));
     if (reportHasDelimiter(curString, curChar, "error")) {
         curChar += 1;
     }
@@ -312,6 +317,10 @@ struct uartComm {
         occupied = false;
     }
 
+    void consoleLogFromError(int error) {
+        //if-else tree of error codes and their meaning, will implement later
+    }
+
     nanoReport listenUART() {
         if (!occupied) {
             occupied = true;
@@ -328,7 +337,10 @@ struct uartComm {
             ssize_t result;
             bool started = false;
 
-            while (true) {
+            std::chrono::seconds timeOut = std::chrono::seconds(7);
+            std::chrono::time_point deadLine = std::chrono::steady_clock::now() + timeOut;
+
+            while (std::chrono::steady_clock::now() <= deadLine) {
                 result = read(serialID, buffer, 64);
 
                 if (result == 0) {
@@ -377,9 +389,11 @@ struct uartComm {
                 }
 
             }
+
             occupied = false;
             std::cout << "[UART] Received Nano report payload: " << readBuffer << std::endl;
             datafieng(readBuffer, data);
+            consoleLogFromError(data.error);
             return data;
         }
         std::cout << "[UART] Cannot listen: UART is already occupied." << std::endl;
@@ -406,6 +420,7 @@ struct gcodeDecoder {
         }
         return false;
     }
+
 
     float loadNumber() {
         float oneNumber = 0;
@@ -460,9 +475,10 @@ struct gcodeDecoder {
         return oneNumber;
     }
 
+
     int determineCMD(char curChar, int curNum) {
         if (curChar == 'G') {
-            if (curNum == 1) {
+            if (curNum == 0) {
                 return 5;
             }
             if (curNum == 1) {
@@ -491,33 +507,35 @@ struct gcodeDecoder {
                 return 2;
             }
             else if (curNum == 5) {
-                return 5;
+                return 6;
             }
             else if (curNum == 30) {
-                return 4;
+                return 7;
             }
         }
         std::cout << "[GCODE] Unsupported command: " << curChar << curNum << std::endl;
         return 254;
     }
 
-    void createCMD(basicCMD &cmd, float number) {
-        if (gcodeText[currentChar] == instructionChars[0]) {
+
+    void createCMD(basicCMD &cmd, float number, char curChar) {
+        if (curChar == instructionChars[0]) {
             cmd.position.x = number;
         }
-        else if (gcodeText[currentChar] == instructionChars[1]) {
+        else if (curChar == instructionChars[1]) {
             cmd.position.y = number;
         }
-        else if (gcodeText[currentChar] == instructionChars[2]) {
+        else if (curChar == instructionChars[2]) {
             cmd.z = number;
         }
-        else if (gcodeText[currentChar] == instructionChars[5]) {
+        else if (curChar == instructionChars[5]) {
             cmd.speed = number;
         }
-        else if (gcodeText[currentChar] == instructionChars[6]) {
-            cmd.speed = number;
+        else if (curChar == instructionChars[6]) {
+            cmd.spindleSpeed = number;
         }
     }
+
 
     basicCMD nextInstr() {
         bool firstCmd = true;
@@ -532,14 +550,16 @@ struct gcodeDecoder {
             if (gcodeText[currentChar] == commandChars[0] || gcodeText[currentChar] == commandChars[1]) {
                 if (firstCmd) {
                     firstCmd = false;
-                    generatedCMD.command = determineCMD(gcodeText[currentChar], int(loadNumber()));
+                    char curChar = gcodeText[currentChar];
+                    generatedCMD.command = determineCMD(curChar, int(loadNumber()));
                     continue;
                 }
                 break;
             }
 
             if (contains()) {
-                createCMD(generatedCMD, loadNumber());
+                char curChar = gcodeText[currentChar];
+                createCMD(generatedCMD, loadNumber(), curChar);
             }
 
             currentChar += 1;
@@ -552,7 +572,7 @@ struct gcodeDecoder {
 struct tcpCommUser {
     int port, serverID, socketID;
     std::string readBuffer;
-    char startCharr, endCharr, stopCharr, pauseCharr;
+    char startCharr, endCharr, stopCharr, pauseCharr, continueCharr;
 
     tcpCommUser(int port = 5000) {
         this->port = port;
@@ -562,6 +582,7 @@ struct tcpCommUser {
         endCharr = '\n';
         stopCharr = '#';
         pauseCharr = ';';
+        continueCharr = '|';
     }
 
     void startServer() {
@@ -706,6 +727,7 @@ struct tcpCommUser {
         }
     }
 
+
     bool socketHasDataNow(int socketID) {
         fd_set readSet;
         FD_ZERO(&readSet);
@@ -751,6 +773,11 @@ struct tcpCommUser {
                 std::cout << "[EMERGENCY] End command requested by backend." << std::endl;
                 returnValue = 5;
             }
+            if (current.find(continueCharr) != std::string::npos) {
+                std::cout << "[EMERGENCY] Continue command requested by backend." << std::endl;
+                returnValue = 6;
+            }
+
         }
         return returnValue;
     }
@@ -762,12 +789,13 @@ struct communicator {
     gcodeDecoder myDec;
     tcpCommUser myTCPUser;
     tcpCommUser myEmergencyUser;
-    nanoReport savedReport;
     bool homed;
+    bool toContinue = false;
+    fs::path gcodePathRemebered;
     size_t rememberedChar = 0;
 
     communicator(fs::path port) {
-        this->myUART = uartComm(port);
+        this->myUART = uartComm(port, 115200);
         myTCPUser = tcpCommUser(5000);
         myEmergencyUser = tcpCommUser(5001);
         homed = false;
@@ -782,8 +810,6 @@ struct communicator {
             std::cout << "[SETUP] Command/report TCP server setup failed." << std::endl;
             return;
         }
-        std::cout << "[SETUP] Waiting for backend on port " << myTCPUser.port << "." << std::endl;
-        myTCPUser.waitForBackend();
         std::cout << "[SETUP] Starting emergency TCP server." << std::endl;
         try {
             myEmergencyUser.startServer();
@@ -794,6 +820,8 @@ struct communicator {
         }
         std::cout << "[SETUP] Waiting for backend emergency connection on port " << myEmergencyUser.port << "." << std::endl;
         myEmergencyUser.waitForBackend();
+        std::cout << "[SETUP] Waiting for backend on port " << myTCPUser.port << "." << std::endl;
+        myTCPUser.waitForBackend();
         std::cout << "[SETUP] TCP communication initialized successfully." << std::endl;
 
         myUART.startComm();
@@ -811,32 +839,46 @@ struct communicator {
             return false;
         }
 
+        if (curReport.status == 1) {
+            std::cout << "[UART] Arduino did not respond, current report is from C++ comm." << std::endl;
+            return false;
+        }
+
         if (message == 4 || message == 5) {
             std::cout << "[GCODE] Stopping current G-code task because emergency command " << message << " was received." << std::endl;
-            cmd.command = message;
-            myUART.sendBasicCMD(cmd);
             rememberedChar = 0;
             if (message == 4) {
-                rememberedChar = decoder.currentChar;
-                savedReport = curReport;
+                myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
+                toContinue = true;
             }
             return false;
         }
 
-        if (cmd.command == 255) {
-            std::cout << "[GCODE] Current G-code task finished." << std::endl;
-            return false;
-        }
+        if (cmd.command != 254) {
+            std::cout << "[GCODE] Sending command: " << static_cast<int>(cmd.command) << " with parameters X: " << cmd.position.x
+                      << ", Y: " << cmd.position.y << ", Z: " << cmd.z << ", Speed: " << cmd.speed
+                      << ", Spindle Speed: " << cmd.spindleSpeed << "." << std::endl;
+            myUART.sendBasicCMD(cmd);
 
-        myUART.sendBasicCMD(cmd);
+            if (cmd.command == 255 || cmd.command == 7) {
+                std::cout << "[GCODE] Current G-code task finished." << std::endl;
+                return false;
+            }
+        }
+        if (cmd.command == 254) {
+            std::cout << "[GCODE] Unsupported command encountered, skipping." << std::endl;
+        }
         return true;
     }
 
 
-    void gcodeSender(fs::path gcodePath) {
+    void gcodeSender(fs::path gcodePath, size_t startChar = 0) {
         myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
+        nanoReport curReport = myUART.listenUART();
         bool advance = true;
         std::ifstream file(gcodePath);
+        toContinue = false;
+        rememberedChar = 0;
 
         if (!file) {
             myTCPUser.sendData(nanoReport(1, 1));
@@ -844,19 +886,67 @@ struct communicator {
             return;
         }
 
+        if (curReport.error == 4) {
+            std::cout << "[GCODE] Arduino pinged back." << std::endl;
+        }
+
+        else {
+            if (curReport.status == 1) {
+                std::cout << "[GCODE] Arduino didn't respond, current report is from C++ comm" << std::endl;
+            }
+
+            std::cout << "[GCODE] Arduino did not ping back, error code: " << static_cast<int>(curReport.error) << "." << std::endl;
+            return;
+        }
+
+        if (!homed) {
+            myUART.sendBasicCMD(basicCMD(3));
+            homed = true;
+        }
+
+        else {
+            myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
+        }
+
         std::stringstream buffer;
         buffer << file.rdbuf();
-        gcodeDecoder decoder = gcodeDecoder(buffer.str(), rememberedChar);
+        gcodeDecoder decoder = gcodeDecoder(buffer.str(), startChar);
 
         while (advance) {
             advance = doGcodeTask(decoder);
+        }
+
+        if (toContinue) {
+            gcodePathRemebered = gcodePath;
+            rememberedChar = decoder.currentChar;
+        }
+    }
+
+
+    void move(float x, float y, float z) {
+        if (homed) {
+            myUART.sendBasicCMD(basicCMD(1, {x, y}, z));
+            myTCPUser.sendData(myUART.listenUART());
+        }
+
+        else {
+            std::cout << "[TASK] Invalid move task: machine not homed." << std::endl;
         }
     }
 
 
     void operateCommunicator() {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (toContinue) {
+            int message = myEmergencyUser.readEmergency();
+            if (message == 6) {
+                std::cout << "[GCODE] Continuing G-code task from remembered position." << std::endl;
+                gcodeSender(gcodePathRemebered, rememberedChar);
+                toContinue = false;
+            }
+        }
         json newestTask = myTCPUser.readData();
+
         if (newestTask.is_null()) {
             std::cout << "[TASK] No valid task received from backend." << std::endl;
             return;
@@ -872,13 +962,10 @@ struct communicator {
                 case 1: {
                     if (newestTask.contains("x") && newestTask.contains("y") && newestTask.contains("z")) {
                         if (newestTask["x"].is_number() && newestTask["y"].is_number() && newestTask["z"].is_number()) {
-                            if (homed) {
-                                myUART.sendBasicCMD(basicCMD(1, {newestTask["x"].get<float>(), newestTask["y"].get<float>()}, newestTask["z"].get<float>()));
-                            }
-
-                            else {
-                                std::cout << "[TASK] Invalid move task: machine not homed." << std::endl;
-                            }
+                            float x = newestTask["x"].get<float>();
+                            float y = newestTask["y"].get<float>();
+                            float z = newestTask["z"].get<float>();
+                            move(x, y, z);
                         }
                         else {
                             std::cout << "[TASK] Invalid move task: x, y, and z must be numbers." << std::endl;
@@ -891,16 +978,24 @@ struct communicator {
                 }
                 case 2: {
                     myUART.sendBasicCMD(basicCMD(3));
+                    homed = true;
+                    myTCPUser.sendData(myUART.listenUART());
                     break;
                 };
                 case 3:
                     if (newestTask.contains("path") && newestTask["path"].is_string()) {
-                        gcodeSender(newestTask["path"].get<fs::path>());
+                        gcodeSender(fs::path(newestTask["path"].get<std::string>()));
                     }
                     else {
                         std::cout << "[TASK] Invalid G-code task: missing string 'path' field." << std::endl;
                     }
                     break;
+                case 4: {
+                    myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
+                    homed = true;
+                    myTCPUser.sendData(myUART.listenUART());
+                    break;
+                }
                 default:
                     std::cout << "[TASK] Unsupported task command: " << newestTask["cmd"].get<int>() << std::endl;
                     break;
