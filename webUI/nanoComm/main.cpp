@@ -337,7 +337,7 @@ struct uartComm {
             ssize_t result;
             bool started = false;
 
-            std::chrono::seconds timeOut = std::chrono::seconds(7);
+            std::chrono::seconds timeOut = std::chrono::seconds(600);
             std::chrono::time_point deadLine = std::chrono::steady_clock::now() + timeOut;
 
             while (std::chrono::steady_clock::now() <= deadLine) {
@@ -793,6 +793,7 @@ struct communicator {
     bool toContinue = false;
     fs::path gcodePathRemebered;
     size_t rememberedChar = 0;
+    nanoReport remeberedReport;
 
     communicator(fs::path port) {
         this->myUART = uartComm(port, 115200);
@@ -832,6 +833,18 @@ struct communicator {
         nanoReport curReport = myUART.listenUART();
         int message = myEmergencyUser.readEmergency();
         myTCPUser.sendData(curReport);
+
+        if (message == 4 || message == 5) {
+            std::cout << "[GCODE] Stopping current G-code task because emergency command " << message << " was received." << std::endl;
+            rememberedChar = 0;
+            if (message == 4) {
+                myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
+                toContinue = true;
+                remeberedReport = curReport;
+            }
+            return false;
+        }
+
         basicCMD cmd = decoder.nextInstr();
 
         if (curReport.error != 0 && curReport.error != 4) {
@@ -844,16 +857,6 @@ struct communicator {
             return false;
         }
 
-        if (message == 4 || message == 5) {
-            std::cout << "[GCODE] Stopping current G-code task because emergency command " << message << " was received." << std::endl;
-            rememberedChar = 0;
-            if (message == 4) {
-                myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
-                toContinue = true;
-            }
-            return false;
-        }
-
         if (cmd.command != 254) {
             std::cout << "[GCODE] Sending command: " << static_cast<int>(cmd.command) << " with parameters X: " << cmd.position.x
                       << ", Y: " << cmd.position.y << ", Z: " << cmd.z << ", Speed: " << cmd.speed
@@ -862,6 +865,7 @@ struct communicator {
 
             if (cmd.command == 255 || cmd.command == 7) {
                 std::cout << "[GCODE] Current G-code task finished." << std::endl;
+                myTCPUser.sendData(myUART.listenUART());
                 return false;
             }
         }
@@ -877,7 +881,6 @@ struct communicator {
         nanoReport curReport = myUART.listenUART();
         bool advance = true;
         std::ifstream file(gcodePath);
-        toContinue = false;
         rememberedChar = 0;
 
         if (!file) {
@@ -912,6 +915,13 @@ struct communicator {
         buffer << file.rdbuf();
         gcodeDecoder decoder = gcodeDecoder(buffer.str(), startChar);
 
+        if (toContinue) {
+            std::cout << "[GCODE] Continuing G-code task from remembered position." << std::endl;
+            myUART.sendBasicCMD(basicCMD(5, remeberedReport.position, remeberedReport.z, remeberedReport.speed, remeberedReport.spindlSpeed));
+        }
+
+        toContinue = false;
+
         while (advance) {
             advance = doGcodeTask(decoder);
         }
@@ -923,9 +933,9 @@ struct communicator {
     }
 
 
-    void move(float x, float y, float z) {
+    void move(float x, float y, float z, float speed, float spindleSpeed) {
         if (homed) {
-            myUART.sendBasicCMD(basicCMD(1, {x, y}, z));
+            myUART.sendBasicCMD(basicCMD(8, {x, y}, z, speed, spindleSpeed));
             myTCPUser.sendData(myUART.listenUART());
         }
 
@@ -937,14 +947,6 @@ struct communicator {
 
     void operateCommunicator() {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        if (toContinue) {
-            int message = myEmergencyUser.readEmergency();
-            if (message == 6) {
-                std::cout << "[GCODE] Continuing G-code task from remembered position." << std::endl;
-                gcodeSender(gcodePathRemebered, rememberedChar);
-                toContinue = false;
-            }
-        }
         json newestTask = myTCPUser.readData();
 
         if (newestTask.is_null()) {
@@ -960,12 +962,24 @@ struct communicator {
         if (!newestTask.is_null() && newestTask.contains("cmd")) {
             switch (newestTask["cmd"].get<int>()) {
                 case 1: {
-                    if (newestTask.contains("x") && newestTask.contains("y") && newestTask.contains("z")) {
-                        if (newestTask["x"].is_number() && newestTask["y"].is_number() && newestTask["z"].is_number()) {
+                    if (newestTask.contains("x") && newestTask.contains("y") && newestTask.contains("z") && newestTask.contains("speed") && newestTask.contains("spindleSpeed")) {
+                        if (newestTask["x"].is_number() && newestTask["y"].is_number() && newestTask["z"].is_number() && newestTask["speed"].is_number() && newestTask["spindleSpeed"].is_number()) {
                             float x = newestTask["x"].get<float>();
                             float y = newestTask["y"].get<float>();
                             float z = newestTask["z"].get<float>();
-                            move(x, y, z);
+                            float speed = newestTask["speed"].get<float>();
+                            float spindleSpeed = newestTask["spindleSpeed"].get<float>();
+                            if (x == -1) {
+                                x = 0;
+                            }
+                            if (y == -1) {
+                                y = 0;
+                            }
+                            if (z == -1) {
+                                z = 0;
+                            }
+
+                            move(x, y, z, speed, spindleSpeed);
                         }
                         else {
                             std::cout << "[TASK] Invalid move task: x, y, and z must be numbers." << std::endl;
@@ -994,6 +1008,16 @@ struct communicator {
                     myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
                     homed = true;
                     myTCPUser.sendData(myUART.listenUART());
+                    break;
+                }
+                case 5: {
+                    if (toContinue) {
+                        std::cout << "[GCODE] Continuing G-code task from remembered position." << std::endl;
+                        gcodeSender(gcodePathRemebered, rememberedChar);
+                    }
+                    else {
+                        std::cout << "[TASK] No G-code task to continue." << std::endl;
+                    }
                     break;
                 }
                 default:

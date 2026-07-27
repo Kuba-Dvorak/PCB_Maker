@@ -71,20 +71,22 @@
                 </div>
             </section>
 
-            <section class="panel emergency-panel" aria-labelledby="status-title">
+            <section class="panel emergency-panel" aria-labelledby="emergency-title">
                 <div class="panel-heading">
                     <div>
-                        <p class="eyebrow">Stop panel</p>
-                        <h2 id="status-title">Emergency stop</h2>
+                        <p class="eyebrow">Job control</p>
+                        <h2 id="emergency-title">Stop &amp; resume</h2>
                     </div>
+                    <span class="panel-badge">Soft stop</span>
                 </div>
 
-                 <div class="stop button">
-                    <button id="stop" class="jog-button jog-right" type="button">STOP</button>
+                <div class="control-row">
+                    <button id="stop" class="control-button control-danger" type="button">STOP</button>
+                    <button id="pause" class="control-button" type="button">PAUSE</button>
+                    <button id="continue" class="control-button control-accent" type="button">CONTINUE</button>
+                    <button id="home" class="control-button" type="button">HOME</button>
                 </div>
-                <div class="pause button">
-                    <button id="pause" class="jog-button jog-right" type="button">PAUSE</button>
-                </div>
+                <p id="EmergencyID" class="operation-result" role="status">No job control command has been sent yet</p>
             </section>
 
             <section class="panel upload-panel" aria-labelledby="upload-title">

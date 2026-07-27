@@ -65,6 +65,7 @@ h2 { font-size: 1.1rem; letter-spacing: -0.01em; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
 .panel { padding: 22px; border: 1px solid var(--border); border-radius: 15px; background: linear-gradient(145deg, #172238, var(--surface)); box-shadow: 0 18px 38px #02060d33; }
 .motion-panel, .status-panel { grid-column: span 6; }
+.emergency-panel { grid-column: span 12; }
 .upload-panel { grid-column: span 4; }
 .gcodes-panel { grid-column: span 8; }
 .panel-heading { justify-content: space-between; gap: 16px; margin-bottom: 20px; }
@@ -84,6 +85,15 @@ h2 { font-size: 1.1rem; letter-spacing: -0.01em; }
 .button-group { gap: 8px; }
 .jog-compact { min-height: 36px; min-width: 56px; }
 .operation-result, .upload-feedback { min-height: 1.35em; margin-top: 16px; color: var(--muted); font-size: .86rem; }
+
+.control-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.control-button { min-height: 52px; border: 1px solid #39516d; border-radius: 10px; color: #d8e6f2; font-weight: 800; letter-spacing: .06em; background: #202d43; transition: background .15s, border-color .15s, color .15s, transform .15s; }
+.control-button:hover { border-color: var(--accent); color: #fff; background: #29445b; }
+.control-button:active { transform: translateY(1px); }
+.control-danger { border-color: #6d3944; color: #f3a4a9; background: #2c1b22; }
+.control-danger:hover { border-color: var(--danger); color: #fff; background: #5c2730; }
+.control-accent { border-color: #1f6f6d; color: #7fe6dc; background: #122c31; }
+.control-accent:hover { border-color: var(--accent); color: #fff; background: #17494b; }
 
 .status-summary { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: #101a2a; }
 .status-summary p { padding: 12px; color: #c9d9e8; font-size: .9rem; }
@@ -118,6 +128,7 @@ button:focus-visible, .file-picker:focus-within { outline: 3px solid #5adbd080; 
 
 @media (max-width: 800px) {
     .motion-panel, .status-panel, .upload-panel, .gcodes-panel { grid-column: span 12; }
+    .control-row { grid-template-columns: repeat(2, 1fr); }
     .gcode-card { grid-template-columns: 1fr auto auto; }
     .gcode-card .gcodeDate, .gcode-card .gcodeSize { grid-column: span 1; }
 }

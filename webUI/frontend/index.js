@@ -1,6 +1,16 @@
 
 const XForward = document.getElementById("XbuttP")
 const XBackwards = document.getElementById("XbuttM")
+const YForward = document.getElementById("YbuttP")
+const YBackwards = document.getElementById("YbuttM")
+const ZForward = document.getElementById("ZbuttP")
+const ZBackwards = document.getElementById("ZbuttM")
+
+const stopBut = document.getElementById("stop")
+const pauseBut = document.getElementById("pause")
+const continueBut = document.getElementById("continue")
+const homeBut = document.getElementById("home")
+
 const gcodeUpload = document.getElementById("gcodeUpload")
 const gcodeBackText = document.getElementById("uploadSuccesText")
 
@@ -18,6 +28,10 @@ const gcodeListArrNames = []
 /** @type {HTMLInputElement} */
 const gcodeFile = document.getElementById("gcodeInput")
 
+let currentSizeOperator = 10
+let currentSpeedSizeOperator = 10
+let currentSpindleSpeedSizeOperator = 10
+
 
 window.addEventListener("DOMContentLoaded", () => {
     loadGcodesFromDB()
@@ -27,71 +41,64 @@ window.addEventListener("DOMContentLoaded", () => {
 })
 
 
-async function stopButton(event) {
-    event.preventDefault()
-    const response = await fetch("http://localhost:3300/emergency", {
-        method: "POST",
-        headers: {
-            "Content-Type" : "application/json"
-        },
-        body: JSON.stringify({
-            cmd: "Stop"
+async function sendEmergencyCMD(name) {
+    try {
+        const response = await fetch("http://localhost:3300/emergency", {
+            method: "POST",
+            headers: {
+                "Content-Type" : "application/json"
+            },
+            body: JSON.stringify({
+                cmd: name
+            })
         })
-    })
 
-    const data = await response.json()
-    emergencyResult.textContent = data.answer
+        const data = await response.json()
+        emergencyResult.textContent = data.answer
+    } catch (err) {
+        console.error(`[FE] Emergency command ${name} could not be sent:`, err)
+        emergencyResult.textContent = "Backend is not responding"
+    }
 }
 
 
-async function homeButton(event) {
+async function stopButton(event) {
     event.preventDefault()
-    const response = await fetch("http://localhost:3300/home", {
-        method: "POST",
-        headers: {
-            "Content-Type" : "application/json"
-        },
-        body: JSON.stringify({
-            cmd: "min"
-        })
-    })
-
-    const data = await response.json()
-    //emergencyResult.textContent = data.answer
+    await sendEmergencyCMD("Stop")
 }
 
 
 async function pauseButton(event) {
     event.preventDefault()
-    const response = await fetch("http://localhost:3300/emergency", {
-        method: "POST",
-        headers: {
-            "Content-Type" : "application/json"
-        },
-        body: JSON.stringify({
-            cmd: "Pause"
-        })
-    })
-
-    const data = await response.json()
-    emergencyResult.textContent = data.answer
+    await sendEmergencyCMD("Pause")
 }
 
 
 async function continueButton(event) {
     event.preventDefault()
-    const response = await fetch("http://localhost:3300/emergency", {
-        method: "POST",
-        headers: {
-            "Content-Type" : "application/json"
-        },
-        body: JSON.stringify({
-            cmd: "Continue"
-        })
-    })
+    await sendEmergencyCMD("Continue")
+}
 
-    const data = await response.json()
-    emergencyResult.textContent = data.answer
+
+async function homeButton(event) {
+    event.preventDefault()
+    try {
+        const response = await fetch("http://localhost:3300/home", {
+            method: "POST",
+            headers: {
+                "Content-Type" : "application/json"
+            },
+            body: JSON.stringify({
+                cmd: "min"
+            })
+        })
+
+        const data = await response.json()
+        emergencyResult.textContent = data.answer
+    } catch (err) {
+        console.error("[FE] Homing command could not be sent:", err)
+        emergencyResult.textContent = "Backend is not responding"
+    }
 }
 
 
@@ -202,19 +209,48 @@ function operateGcodeList(name, date, size, opperation) {
 }
 
 
-XForward.addEventListener("click", async function (event) {
-    event.preventDefault()
-    
-    const response = await fetch("http://localhost:3300/operate", {
-        method: "POST",
-        headers: {
-            "Content-Type" : "application/json"
-        }
-    })
+async function sendOperate(axis, size) {
+    try {
+        const response = await fetch("http://localhost:3300/operate", {
+            method: "POST",
+            headers: {
+                "Content-Type" : "application/json"
+            },
+            body: JSON.stringify({
+                corect: true,
+                cmd: axis,
+                size: size
+            })
+        })
 
-    const data = await response.json()
-    operationResult.textContent = data.answer
-})
+        const data = await response.json()
+        operationResult.textContent = data.answer
+    } catch (err) {
+        console.error(`[FE] Jog ${axis} by ${size} could not be sent:`, err)
+        operationResult.textContent = "Backend is not responding"
+    }
+}
+
+
+function jogButton(axis, direction) {
+    return async function (event) {
+        event.preventDefault()
+        await sendOperate(axis, direction * currentSizeOperator)
+    }
+}
+
+
+XForward.addEventListener("click", jogButton("x", 1))
+XBackwards.addEventListener("click", jogButton("x", -1))
+YForward.addEventListener("click", jogButton("y", 1))
+YBackwards.addEventListener("click", jogButton("y", -1))
+ZForward.addEventListener("click", jogButton("z", 1))
+ZBackwards.addEventListener("click", jogButton("z", -1))
+
+stopBut.addEventListener("click", stopButton)
+pauseBut.addEventListener("click", pauseButton)
+continueBut.addEventListener("click", continueButton)
+homeBut.addEventListener("click", homeButton)
 
 
 gcodeUpload.addEventListener("click", async function (event) {
@@ -250,7 +286,7 @@ gcodeUpload.addEventListener("click", async function (event) {
                 })
             })
 
-    const data2 = await response.json()
+    const data2 = await response2.json()
     console.log("DB response:" + data2.answer)
 })
 
@@ -279,14 +315,22 @@ async function loadGcodesFromDB() {
 
 
 async function loadNanoReport() {
-    const response = await fetch("http://localhost:3300/currentPrinterInfo", {
-        method: "POST",
-        headers: {
-            "Content-Type" : "application/json"
-        }
-    })
+    let data
+    try {
+        const response = await fetch("http://localhost:3300/currentPrinterInfo", {
+            method: "POST",
+            headers: {
+                "Content-Type" : "application/json"
+            }
+        })
 
-    const data = await response.json()
+        data = await response.json()
+    } catch (err) {
+        console.error("[FE] Telemetry could not be loaded:", err)
+        printerStatus.textContent = "Status: backend is not responding"
+        return
+    }
+
     let statusContent = "Frontend"
     let error = "Not connected"
 
@@ -303,8 +347,9 @@ async function loadNanoReport() {
     // if-else strom na erory
 
     printerStatus.textContent = "Status: " + statusContent
-    printerError.textContent = "Error" + error
-    printerPosition = `X: ${data.x} | Y: ${data.y} | Z: X: ${data.z}`
-    printerSpeed = "Speed: " + `${data.speed}`
-    printerSpindlSpeed = "Spindle speed: " + `${data.spindlSpeed}`
+    printerError.textContent = "Error: " + error
+    printerPosition.textContent = `X: ${data.x} | Y: ${data.y} | Z: ${data.z}`
+    printerSpeed.textContent = "Speed: " + `${data.speed}`
+    printerSpindlSpeed.textContent = "Spindle speed: " + `${data.spindlSpeed}`
+    // jeste nejaka zmena svetilka na to aby to signalizovalo zmenu telemetrie
 }

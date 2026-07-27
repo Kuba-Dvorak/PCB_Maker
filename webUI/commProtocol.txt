@@ -4,6 +4,7 @@ Position change: 1
 home: 2
 readGcode: 3
 home max: 4
+continue: 5
 
 emergency codes:
 
@@ -32,4 +33,3 @@ konec zpravy: /n
 emergency TCP:
 ; = stop
 # = end
-| = continue
