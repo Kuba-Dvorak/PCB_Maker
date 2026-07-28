@@ -48,6 +48,25 @@
                         <button id="ZbuttM" class="jog-button jog-compact" type="button">Z−</button>
                     </div>
                 </div>
+
+                <div class="step-controls" aria-label="Movement parameters">
+                    <div class="slider-row">
+                        <label for="stepSize">Step</label>
+                        <input type="range" id="stepSize" min="0.1" max="25" step="0.1" value="10">
+                        <output id="stepSizeValue" for="stepSize">10 mm</output>
+                    </div>
+                    <div class="slider-row">
+                        <label for="stepSpeed">Feed</label>
+                        <input type="range" id="stepSpeed" min="1" max="160" step="1" value="10">
+                        <output id="stepSpeedValue" for="stepSpeed">10 mm/s</output>
+                    </div>
+                    <div class="slider-row">
+                        <label for="stepSpindle">Spindle</label>
+                        <input type="range" id="stepSpindle" min="0" max="20000" step="10" value="10">
+                        <output id="stepSpindleValue" for="stepSpindle">10 rpm</output>
+                    </div>
+                </div>
+
                 <p id="operateAnswer" class="operation-result" role="status">Ready for a command</p>
             </section>
 
@@ -84,7 +103,8 @@
                     <button id="stop" class="control-button control-danger" type="button">STOP</button>
                     <button id="pause" class="control-button" type="button">PAUSE</button>
                     <button id="continue" class="control-button control-accent" type="button">CONTINUE</button>
-                    <button id="home" class="control-button" type="button">HOME</button>
+                    <button id="homeMin" class="control-button" type="button">HOME MIN</button>
+                    <button id="homeMax" class="control-button" type="button">HOME MAX</button>
                 </div>
                 <p id="EmergencyID" class="operation-result" role="status">No job control command has been sent yet</p>
             </section>

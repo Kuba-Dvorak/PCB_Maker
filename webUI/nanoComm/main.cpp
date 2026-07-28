@@ -194,35 +194,35 @@ void datafieng(std::string &curString, nanoReport &changeReport) {
     else {
         return;
     }
-    changeReport.position.x = loadNumberForData(curChar, curString);
+    changeReport.position.x = loadNumberForData(curChar, curString) / 100;
     if (reportHasDelimiter(curString, curChar, "x")) {
         curChar += 1;
     }
     else {
         return;
     }
-    changeReport.position.y = loadNumberForData(curChar, curString);
+    changeReport.position.y = loadNumberForData(curChar, curString) / 100;
     if (reportHasDelimiter(curString, curChar, "y")) {
         curChar += 1;
     }
     else {
         return;
     }
-    changeReport.z = loadNumberForData(curChar, curString);
+    changeReport.z = loadNumberForData(curChar, curString) / 100;
     if (reportHasDelimiter(curString, curChar, "z")) {
         curChar += 1;
     }
     else {
         return;
     }
-    changeReport.speed = loadNumberForData(curChar, curString);
+    changeReport.speed = loadNumberForData(curChar, curString) / 100;
     if (reportHasDelimiter(curString, curChar, "speed")) {
         curChar += 1;
     }
     else {
         return;
     }
-    changeReport.spindlSpeed = loadNumberForData(curChar, curString);
+    changeReport.spindlSpeed = loadNumberForData(curChar, curString) / 100;
     return;
 }
 
@@ -306,13 +306,15 @@ struct uartComm {
         
         char buffer[64] = {};
         cmd.prepareForNano(buffer, sizeof(buffer));
-        ssize_t result = write(serialID, buffer, sizeof(buffer));
+        ssize_t result = write(serialID, buffer, strlen(buffer));
+
         if (result < 0) {
             std::cout << "[UART] Failed to write command to " << port << ": " << std::strerror(errno) << "." << std::endl;
         }
-        else if (result < static_cast<ssize_t>(sizeof(buffer))) {
+
+        else if (result < static_cast<ssize_t>(strlen(buffer))) {
             std::cout << "[UART] Partial command write to " << port << ": wrote " << result
-                      << " of " << sizeof(buffer) << " bytes." << std::endl;
+                      << " of " << strlen(buffer) << " bytes." << std::endl;
         }
         occupied = false;
     }
@@ -793,7 +795,7 @@ struct communicator {
     bool toContinue = false;
     fs::path gcodePathRemebered;
     size_t rememberedChar = 0;
-    nanoReport remeberedReport;
+    nanoReport remeberedReport = nanoReport(1);
 
     communicator(fs::path port) {
         this->myUART = uartComm(port, 115200);
@@ -879,6 +881,7 @@ struct communicator {
     void gcodeSender(fs::path gcodePath, size_t startChar = 0) {
         myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
         nanoReport curReport = myUART.listenUART();
+        myTCPUser.sendData(curReport);
         bool advance = true;
         std::ifstream file(gcodePath);
         rememberedChar = 0;
@@ -916,6 +919,7 @@ struct communicator {
         gcodeDecoder decoder = gcodeDecoder(buffer.str(), startChar);
 
         if (toContinue) {
+            myTCPUser.sendData(myUART.listenUART());
             std::cout << "[GCODE] Continuing G-code task from remembered position." << std::endl;
             myUART.sendBasicCMD(basicCMD(5, remeberedReport.position, remeberedReport.z, remeberedReport.speed, remeberedReport.spindlSpeed));
         }
@@ -940,6 +944,9 @@ struct communicator {
         }
 
         else {
+            myUART.sendBasicCMD(basicCMD(0, {x, y}, z, speed, spindleSpeed));
+            std::cout << "[TASK] Pinging." << std::endl;
+            myTCPUser.sendData(myUART.listenUART());
             std::cout << "[TASK] Invalid move task: machine not homed." << std::endl;
         }
     }

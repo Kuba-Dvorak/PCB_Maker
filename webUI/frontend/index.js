@@ -9,7 +9,16 @@ const ZBackwards = document.getElementById("ZbuttM")
 const stopBut = document.getElementById("stop")
 const pauseBut = document.getElementById("pause")
 const continueBut = document.getElementById("continue")
-const homeBut = document.getElementById("home")
+const homeMinBut = document.getElementById("homeMin")
+const homeMaxBut = document.getElementById("homeMax")
+
+const stepSizeSlider = document.getElementById("stepSize")
+const stepSpeedSlider = document.getElementById("stepSpeed")
+const stepSpindleSlider = document.getElementById("stepSpindle")
+
+const stepSizeValue = document.getElementById("stepSizeValue")
+const stepSpeedValue = document.getElementById("stepSpeedValue")
+const stepSpindleValue = document.getElementById("stepSpindleValue")
 
 const gcodeUpload = document.getElementById("gcodeUpload")
 const gcodeBackText = document.getElementById("uploadSuccesText")
@@ -80,25 +89,39 @@ async function continueButton(event) {
 }
 
 
-async function homeButton(event) {
-    event.preventDefault()
-    try {
-        const response = await fetch("http://localhost:3300/home", {
-            method: "POST",
-            headers: {
-                "Content-Type" : "application/json"
-            },
-            body: JSON.stringify({
-                cmd: "min"
+function homeButton(direction) {
+    return async function (event) {
+        event.preventDefault()
+        try {
+            const response = await fetch("http://localhost:3300/home", {
+                method: "POST",
+                headers: {
+                    "Content-Type" : "application/json"
+                },
+                body: JSON.stringify({
+                    cmd: direction
+                })
             })
-        })
 
-        const data = await response.json()
-        emergencyResult.textContent = data.answer
-    } catch (err) {
-        console.error("[FE] Homing command could not be sent:", err)
-        emergencyResult.textContent = "Backend is not responding"
+            const data = await response.json()
+            emergencyResult.textContent = data.answer
+        } catch (err) {
+            console.error(`[FE] Homing command ${direction} could not be sent:`, err)
+            emergencyResult.textContent = "Backend is not responding"
+        }
     }
+}
+
+
+function bindSlider(slider, readout, unit, apply) {
+    function refresh() {
+        const value = Number(slider.value)
+        apply(value)
+        readout.textContent = `${value} ${unit}`
+    }
+
+    slider.addEventListener("input", refresh)
+    refresh()
 }
 
 
@@ -250,7 +273,12 @@ ZBackwards.addEventListener("click", jogButton("z", -1))
 stopBut.addEventListener("click", stopButton)
 pauseBut.addEventListener("click", pauseButton)
 continueBut.addEventListener("click", continueButton)
-homeBut.addEventListener("click", homeButton)
+homeMinBut.addEventListener("click", homeButton("min"))
+homeMaxBut.addEventListener("click", homeButton("max"))
+
+bindSlider(stepSizeSlider, stepSizeValue, "mm", (value) => { currentSizeOperator = value })
+bindSlider(stepSpeedSlider, stepSpeedValue, "mm/s", (value) => { currentSpeedSizeOperator = value })
+bindSlider(stepSpindleSlider, stepSpindleValue, "rpm", (value) => { currentSpindleSpeedSizeOperator = value })
 
 
 gcodeUpload.addEventListener("click", async function (event) {

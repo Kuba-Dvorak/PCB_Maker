@@ -1,10 +1,9 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <array>
-#include <cctype>
-
+#include "cctype"
 #include "cmath"
 #include "vector"
+#include "array"
 
 
 #define EMERGENCY_PIN 2
@@ -65,11 +64,11 @@ struct nanoReport {
         buffer[0] = '$';
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", status);
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", error);
-        offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", position.x);
-        offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", position.y);
-        offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", z);
-        offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", speed);
-        offset += snprintf(buffer + offset, bufSize - offset, "%.4f;", spindleSpeed);
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(position.x * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(position.y * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(z * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(speed * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(spindleSpeed * 100));
 
         if (offset >= (int)bufSize) {
             offset = bufSize - 2;
@@ -98,6 +97,7 @@ struct motorNema17 {
                 *portStep |= stepPin;
                 delayMicroseconds(2);
                 *portStep &= ~stepPin;
+                delayMicroseconds(2);
             }
             movingAwayFromEndStop = false;
         }
@@ -106,7 +106,7 @@ struct motorNema17 {
 
 
 //function created by Claude, I was to lazy to think
-void presetOCR1A(long &wantedFreq, uint8_t &presetTCCR1B) {
+void presetOCR1A(long &wantedFreq, uint8_t &presetTCCR1Bs, uint16_t &presetOCR1A) {
     // prescalery Timeru1, od nejmenšího (nejmenší = nejjemnější rozlišení)
     static const struct { uint16_t prescaler; uint8_t csBits; } opts[] = {
         {1,    (1 << CS10)},
@@ -125,16 +125,16 @@ void presetOCR1A(long &wantedFreq, uint8_t &presetTCCR1B) {
         long ocr = ticks - 1;
 
         if (ocr <= 65535) {                                  // vejde se do 16 bitů?
-            OCR1A = (uint16_t)ocr;
-            presetTCCR1B = (1 << WGM12) | opts[i].csBits;     // CTC + zvolený prescaler
+            presetOCR1A = (uint16_t)ocr;
+            presetTCCR1Bs = (1 << WGM12) | opts[i].csBits;     // CTC + zvolený prescaler
             wantedFreq = base / ticks;   // ZAPÍŠEME ZPĚT skutečně dosaženou frekvenci
             return;
         }
     }
 
     // frekvence nižší, než zvládne i /1024 → nejpomalejší možné nastavení
-    OCR1A = 65535;
-    presetTCCR1B = (1 << WGM12) | (1 << CS12) | (1 << CS10);
+    presetOCR1A = 65535;
+    presetTCCR1Bs = (1 << WGM12) | (1 << CS12) | (1 << CS10);
     wantedFreq = (long)(F_CPU / 1024) / 65536L;
 }
 
@@ -156,7 +156,8 @@ struct calibration {
     volatile uint8_t maxX, maxZ, maxY;
     uint8_t pulleyNumTeeth; // how many teeth does the pulley have
     uint8_t jumperDown;
-    uint8_t presetTCCR1B;
+    uint8_t presetTCCR1B = 255;
+    uint16_t presetOCR1As = 65535;
     volatile uint8_t clockX, clockY, clockZ;
     long masterFreq;
     volatile uint8_t finishedJob = 0;
@@ -196,15 +197,15 @@ struct calibration {
         //using GT2 = 2 mm and a classic nema 17 = 200 steps per rotation
         //master clock is 10 times bigger to allow for decimal clocking with bigger accuracy
         long wantedMaxFreq = 10UL * ((float)(std::max(std::max(this->maxSpeedX, this->maxSpeedY), this->maxSpeedZ)) / (float)(2 * this->pulleyNumTeeth)) * (this->jumperDown * 200);
-        presetOCR1A(wantedMaxFreq, presetTCCR1B);
+        presetOCR1A(wantedMaxFreq, presetTCCR1B, presetOCR1As);
         this->masterFreq = wantedMaxFreq;
         this->startCounter = wantedMaxFreq / START_FREQ;
         this->stepAccMax = (masterFreq / counter4Freq) - 1;
         this->timeConst = (float)counter4Freq * MAX_SPEED / maxAcc;
         this->stepAcc = 0;
-        this->maxStepX = std::floor(this->stepLenghtGT2 * this->maxX);
-        this->maxStepY = std::floor(this->stepLenghtGT2 * this->maxY);
-        this->maxStepZ = std::floor(this->stepLenghtT8 * this->maxZ);
+        this->maxStepX = (int)(this->stepLenghtGT2 * this->maxX);
+        this->maxStepY = (int)(this->stepLenghtGT2 * this->maxY);
+        this->maxStepZ = (int)(this->stepLenghtT8 * this->maxZ);
     }
 
     void setupFreqX(uint16_t freq) {
@@ -328,7 +329,6 @@ struct toolheadInfo {
 };
 
 
-
 toolheadInfo basicToolHead() {
     toolheadInfo toolHead;
     toolHead.position.x = 0;
@@ -352,6 +352,7 @@ static void timer1Start() {
     TCCR1B = 0;
     TCNT1 = 0;
     TCCR1B = myCalib.presetTCCR1B;
+    OCR1A = myCalib.presetOCR1As;
     TIMSK1 |= (1 << OCIE1A);
 
     interrupts();
@@ -651,7 +652,7 @@ float loadNum(char *buffer, size_t size, int &currentChar) {
         }
     }
 
-    oneNumber /= std::pow(10, floatinDecimal);
+    oneNumber /= powf(10.0f, floatinDecimal);
     if (negativity) {
         oneNumber *= -1;
     }
@@ -678,13 +679,18 @@ struct cnc {
 
     void initialate() {
         Serial.begin(115200);
+        delay(2500);
+        Serial.setTimeout(1000);
+        //Serial.println("Succesfully initialized baundrate");
+        delay(100);
         timer1Start();
         myCalib.setupPins(motorPins[0],motorPins[1],motorPins[2],endStop[0],endStop[1],
             motorPins[3],motorPins[4],endStop[2],endStop[3],motorPins[5],motorPins[6],endStop[4],endStop[5]);
         digitalWrite(myCalib.enablePin, LOW);
         myCalib.finishedJob = 0;
-        pinMode(EMERGENCY_PIN, INPUT_PULLUP);
-        attachInterrupt(digitalPinToInterrupt(EMERGENCY_PIN), emergencyButtonInterupt, FALLING);
+        //pinMode(EMERGENCY_PIN, INPUT_PULLUP);
+        //attachInterrupt(digitalPinToInterrupt(EMERGENCY_PIN), emergencyButtonInterupt, FALLING);
+        //Serial.println("initialized baundrate emergency etc...");
     }
 
     void operateCMD5(basicCMD &cmd) {
@@ -710,13 +716,13 @@ struct cnc {
             digitalWrite(myCalib.motorZ.dirPin, LOW);
         }
 
-        int freqZ = int(MAX_SPEED * myCalib.stepLenghtT8) / 2;
+        //int freqZ = int(MAX_SPEED * myCalib.stepLenghtT8) / 2;
         int freqXY = int(MAX_SPEED * myCalib.stepLenghtGT2) / 2;
 
-        myCalib.setupFreqZ(freqZ);
-        while (myCalib.finishedJob < 1) {
+        //myCalib.setupFreqZ(freqZ);
+        //while (myCalib.finishedJob < 1) {
             //wait
-        }
+        //}
 
         myCalib.finishedJob = 0;
         myCalib.setupFreqY(freqXY);
@@ -782,7 +788,9 @@ struct cnc {
     void operateInstr() {
         myCalib.finishedJob = 0;
         myCalib.currentError = 0;
+        //Serial.print("Loading instruction");
         basicCMD cmd = loadCMD();
+        //Serial.print("Operating instruction");
 
         if (!(cmd.speed == -1) && (cmd.command != 2)) {
             if (cmd.speed > MAX_SPEED) {
@@ -841,6 +849,7 @@ struct cnc {
         }
 
         else if (cmd.command == 12) {
+            //Serial.println("No instruction skipping");
             return;
         }
 
@@ -848,6 +857,7 @@ struct cnc {
             myCalib.currentError = 5;
         }
 
+        //Serial.println("Sending report");
         report = nanoReport(0, myCalib.currentError, {myToolHead.position.x, myToolHead.position.y,}, myToolHead.z, myToolHead.speed, myToolHead.spindleSpeed);
         sendNanoReport();
     }
@@ -855,8 +865,10 @@ struct cnc {
     basicCMD loadCMD() {
         basicCMD returningCMD = basicCMD();
         size_t len;
+        //Serial.print("Loading S");
         memset(cmdBuf, 0, sizeof(cmdBuf));
         if (Serial.find('$')) {
+            Serial.print("Loading L");
             len = Serial.readBytesUntil('\n', cmdBuf, 63);
             cmdBuf[len] = '\0';
             int curChar = 0;
@@ -911,13 +923,17 @@ struct cnc {
             returningCMD.spindleSpeed = loadNum(cmdBuf, len, curChar);
 
         }
+        else {
+            //Serial.println("Parse failed");
+        }
+        //Serial.print("Loading E");
         return returningCMD;
     }
 
     void sendNanoReport() {
         memset(cmdBuf, 0, sizeof(cmdBuf));
         report.prepareForRPI(cmdBuf, 64);
-        Serial.write(cmdBuf, 64);
+        Serial.write(cmdBuf, strlen(cmdBuf));
     }
 
     void moveZ(float z) {
@@ -992,13 +1008,13 @@ struct cnc {
         int freqY = int(myCalib.maxStepY / totalTime);
 
         if (freqX != 0) {
-            myCalib.setupFreqX(freqX);
             myCalib.finishedJob -= 1;
+            myCalib.setupFreqX(freqX);
         }
         
         if (freqY != 0) {
-            myCalib.setupFreqY(freqY);
             myCalib.finishedJob -= 1;
+            myCalib.setupFreqY(freqY);
         }
 
         while (myCalib.finishedJob < 2) {
@@ -1030,12 +1046,15 @@ struct cnc {
 };
 
 
-cnc myCNC = cnc({1,2,3,4,5,6,7}, {1,2,3,4,5,6});
+cnc myCNC = cnc({3,4,5,6,7,8,9}, {10,16,12,13,14,15});
 
 void setup() {
+    pinMode(19, OUTPUT);
+    digitalWrite(19, HIGH);
     myCNC.initialate();
 }
 
 void loop() {
+    digitalWrite(19, !digitalRead(19));
     myCNC.operateInstr();
 }
