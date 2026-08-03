@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700" width="900" height="700" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { font-size: 21px; font-weight: 700; fill: #111827; }
+    .subtitle { font-size: 12.5px; fill: #6b7280; }
+    .lbl { font-size: 14px; font-weight: 700; fill: #111827; }
+    .note { font-size: 11.5px; fill: #4b5563; }
+    .mono { font-size: 11.5px; fill: #374151; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .arr { stroke: #9ca3af; stroke-width: 2.2; fill: none; }
+    .arrlbl { font-size: 11.5px; font-weight: 700; fill: #374151; }
+  </style>
+  <defs>
+    <marker id="p" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="700" fill="#ffffff"/>
+  <text class="title" x="36" y="40">From Gerber to motion</text>
+  <text class="subtitle" x="36" y="61">G-code is generated once. The DB flag alone is not enough — the file must also still exist on disk.</text>
+
+  <rect x="150" y="88" width="450" height="52" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.7"/>
+  <text class="lbl" x="172" y="110">Gerber exported from the PCB editor</text>
+  <text class="note" x="172" y="128">.gbr .gtl .gbl .drl … extension list is shared by frontend and backend</text>
+
+  <path class="arr" d="M375,140 L375,178" marker-end="url(#p)"/>
+
+  <rect x="150" y="178" width="450" height="52" rx="10" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.7"/>
+  <text class="lbl" x="172" y="200">POST /uploadGerber</text>
+  <text class="mono" x="172" y="219">multer → webUI/gerbers/&lt;name&gt;   +  row in SQLite</text>
+
+  <path class="arr" d="M375,230 L375,268" marker-end="url(#p)"/>
+
+  <rect x="150" y="268" width="450" height="56" rx="10" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.7"/>
+  <text class="lbl" x="172" y="292">POST /printGcode</text>
+  <text class="mono" x="172" y="311">printed &gt; 0  AND  gcodes/&lt;name&gt;.gcode exists ?</text>
+
+  <!-- bypass -->
+  <path class="arr" d="M600,296 L700,296 L700,506 L604,506" marker-end="url(#p)"/>
+  <text class="arrlbl" x="712" y="396">yes —</text>
+  <text class="arrlbl" x="712" y="412">reuse</text>
+
+  <path class="arr" d="M375,324 L375,362" marker-end="url(#p)"/>
+  <text class="arrlbl" x="386" y="348">no</text>
+
+  <rect x="150" y="362" width="450" height="90" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.7"/>
+  <text class="lbl" x="172" y="384">pcb2gcode</text>
+  <text class="mono" x="172" y="403">--config printer/millproject --front &lt;gerber&gt;</text>
+  <text class="mono" x="172" y="420">--output-dir &lt;dir&gt; --front-output &lt;name&gt;.gcode</text>
+  <text class="note" x="172" y="440">checkBoardFits() reads the printed size and rejects boards over 75 x 95 mm</text>
+
+  <path class="arr" d="M375,452 L375,484" marker-end="url(#p)"/>
+
+  <rect x="150" y="484" width="450" height="46" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.7"/>
+  <text class="mono" x="172" y="513">sendCMD { cmd: 3, path: "../../gcodes/&lt;name&gt;.gcode" }</text>
+
+  <path class="arr" d="M375,530 L375,566" marker-end="url(#p)"/>
+
+  <rect x="150" y="566" width="450" height="58" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.7"/>
+  <text class="lbl" x="172" y="588">gcodeDecoder loop</text>
+  <text class="note" x="172" y="608">one line → one basicCMD → UART → wait for report → repeat until M2 / M30</text>
+
+  <path class="arr" d="M375,624 L375,656" marker-end="url(#p)"/>
+
+  <rect x="150" y="656" width="450" height="34" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="1.7"/>
+  <text class="lbl" x="172" y="678" fill="#047857">Nano mills the board</text>
+
+  <!-- side panel: understood codes -->
+  <rect x="640" y="88" width="230" height="176" rx="10" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.4"/>
+  <text class="lbl" x="658" y="112">Codes the decoder knows</text>
+  <text class="mono" x="658" y="136">G00   rapid move</text>
+  <text class="mono" x="658" y="155">G01   linear cut</text>
+  <text class="mono" x="658" y="174">M03   spindle on</text>
+  <text class="mono" x="658" y="193">M05   spindle off</text>
+  <text class="mono" x="658" y="212">M02   end of program</text>
+  <text class="mono" x="658" y="231">M30   end of program</text>
+  <text class="note" x="658" y="253">No G2/G3 — pcb2gcode emits none</text>
+</svg>

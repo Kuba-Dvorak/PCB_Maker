@@ -4,13 +4,8 @@ const sqlite3 = require("sqlite3").verbose();
 const db = new sqlite3.Database("../database/gcodes.db");
 
 db.serialize(() => {
-    db.run(`
-        CREATE TABLE IF NOT EXISTS gcodeList (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            date INTEGER NOT NULL,
-            gsize INTEGER NOT NULL
-        )
+    db.exec(`
+        ALTER TABLE gcodeList ADD COLUMN printed INTEGER
     `);
 
     console.log("DB inicializována");

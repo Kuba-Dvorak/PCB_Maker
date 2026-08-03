@@ -1,0 +1,138 @@
+# ============================================================
+#  pcb2gcode - konfigurace pro tuhle frezku
+# ============================================================
+#
+# Backend tenhle soubor predava pres --config, takze se meni na
+# jednom miste a nemusi se sahat do kodu:
+#
+#   pcb2gcode --config .../webUI/printer/millproject \
+#             --front <gerber> --output-dir <slozka> \
+#             --front-output <jmeno>.gcode
+#
+# Co je tady, jsou vlastnosti STROJE. Co predava backend
+# (--front, --output-dir, --front-output), je vlastnost JOBU.
+#
+# Vsechno nize jde volne prepsat argumentem na prikazove radce,
+# CLI ma prednost pred timhle souborem.
+
+
+# --- jednotky ---------------------------------------------------------
+# metric      = rozmery v tomhle souboru jsou v mm
+# metricoutput = vystupni G-kod je v mm
+metric=true
+metricoutput=true
+
+
+# --- pocatek souradnic ------------------------------------------------
+# Posune desku tak, aby zacinala v (0,0). Bez tohohle by souradnice
+# mohly vyjit zaporne podle toho, kde deska lezela v PCB editoru,
+# a firmware zaporne X/Y clampne na 0 (error 6).
+zero-start=true
+
+
+# --- osa Z ------------------------------------------------------------
+# POZOR, tohle je nejdulezitejsi cast celeho souboru.
+#
+# pcb2gcode normalne pouziva zapornou Z pro rez (zwork=-0.05 znamena
+# 0.05 mm pod povrch medi). Firmware ale Z clampuje do rozsahu
+# 0 az MAX_Z (25 mm) a zaporne hodnoty srazi na 0 s errorem 6,
+# takze by kazdy rezny pohyb sel po povrchu a nic by se nevyfrezovalo.
+#
+# Reseni: cely souradny system je posunuty nahoru. Povrch medi
+# NENI Z=0, ale Z=2.0. Vsechny hodnoty tim padem zustanou kladne
+# a firmware se nemusi menit.
+#
+#   Z = 2.00   povrch medi   (referencni rovina, sama se nikam nepise)
+#   Z = 1.95   hloubka rezu  (0.05 mm pod povrch)
+#   Z = 4.00   bezpecna vyska pro rychloposuvy
+#   Z = 10.00  vyska pro vymenu nastroje
+#
+# Kdyz budes chtit rezat hloubeji, SNIZUJ zwork (1.95 -> 1.90 je
+# 0.10 mm hluboko). Cim mensi cislo, tim hloubeji.
+#
+# pcb2gcode na to vypise varovani "Engraving depth (--zwork) is
+# greater than zero!" - to je v poradku a je to ocekavane.
+zsafe=4.0
+zwork=1.95
+zchange=10.0
+
+
+# --- frezovani --------------------------------------------------------
+# mill-diameters = prumer hrotu rycího nastroje v mm
+# mill-feed      = posuv v rovine XY
+# mill-vertfeed  = posuv pri zajezdu do materialu (pomalejsi)
+# mill-speed     = otacky vretena, strop stroje je 20000
+#
+# !!! POZOR NA JEDNOTKY POSUVU !!!
+# G-kod ma posuv v mm/MINUTU (hlavicka obsahuje G94), ale firmware
+# pracuje s mm/SEKUNDU (MAX_SPEED 160 znamena 160 mm/s).
+# mill-feed=200 tedy znamena 3.33 mm/s, ne 200 mm/s.
+# Nekdo v ceste musi delit 60, viz poznamka na konci souboru.
+mill-diameters=0.2
+mill-feed=200
+mill-vertfeed=50
+mill-speed=20000
+
+# Sirka izolace. 0 = jediny prujezd kolem kazde cesty.
+# Vetsi hodnota = vic prujezdu, sirsi odizolovani, delsi cas.
+isolation-width=0
+milling-overlap=50%
+
+
+# --- co tenhle stroj nedela -------------------------------------------
+# nog64 = negeneruj G64 (vyhlazovani drahy, umi to LinuxCNC, my ne)
+# nom6  = negeneruj M6 (vymena nastroje, mame jen jeden hrot)
+nog64=true
+nom6=true
+
+
+# --- optimalizace -----------------------------------------------------
+# eulerian-paths zabrani frezovani stejne cesty dvakrat.
+# Pozor: "optimise" ve verzi 2.5.0 uz NENI true/false, ale delka
+# (povolena odchylka). Vychozi hodnota 0.00254 mm je zapnuta sama,
+# takze se tu neuvadi. V millproject_example, co je pribaleny
+# ke zdrojakum, je jeste stara boolean varianta a rozbije parsovani.
+eulerian-paths=true
+tsp-2opt=true
+
+
+# ======================================================================
+#  POZNAMKY K INTEGRACI - precist pred prvnim ostrym behem
+# ======================================================================
+#
+# 1) POSUV JE V mm/min, FIRMWARE CHCE mm/s  [VYRESENO]
+#    Radek "G01 F200" znamena 200 mm/min = 3.33 mm/s. Deli se
+#    sesdesati v createCMD() v nanoComm, u znaku 'F':
+#        cmd.speed = number / 60;
+#    Deleni patri PRAVE SEM a nikam jinam. Nesmi byt
+#    v prepareForNano(), protoze ta lezi na spolecne ceste pro
+#    vsechny prikazy vcetne rucniho jogu z frontendu - a ten uz
+#    posila mm/s. Tam by stroj rucne jezdil 60x pomaleji.
+#    Umisteni v createCMD() navic nechava na pokoji sentinel
+#    speed = -1, protoze funkce se vola jen kdyz znak F opravdu byl.
+#
+# 2) KONEC PROGRAMU JE M2, NE M30  [VYRESENO]
+#    pcb2gcode uzavira soubor prikazem M2. determineCMD() v nanoComm
+#    dnes bere oboji:
+#        else if (curNum == 2 || curNum == 30) { return 7; }
+#
+# 3) HLAVICKA OBSAHUJE KODY, KTERE DEKODÉR NEZNA
+#    Konkretne G94, G21, G90, G04, T0, M0, M9, M2. Vsechny spadnou
+#    do "Unsupported command" a preskoci se, takze to nic nerozbije,
+#    jen to zaplni log. Pohybove prikazy jsou jen G00 a G01.
+#
+# 4) ZADNE OBLOUKY
+#    Overeno na realnem vystupu: pcb2gcode negeneruje G2/G3, jen
+#    G00 a G01. Pole I a J v instructionChars zustanou nevyuzita.
+#
+# 5) VELIKOST DESKY  [VYRESENO]
+#    Stroj ma 75 x 95 mm. pcb2gcode pri exportu vypise rozmery
+#    ("Height: ... Width: ..."), backend je cte v checkBoardFits()
+#    a vetsi desku zastavi jeste pred odeslanim do Nana.
+#
+# 6) OTACKY VRETENA JSOU V CELE ULOZE JEDNO CISLO
+#    mill-speed=20000 se objevi jednou v hlavicce jako "S20000"
+#    a uz se nemeni. V Nanu to vyjde na stridu presne 255, takze
+#    controlSpindl() udela digitalWrite(HIGH) a PWM pri frezovani
+#    vubec nebezi. Snizeni mill-speed treba na 19000 da stridu 242
+#    a PWM se zapne i s pripadnym pistenim.

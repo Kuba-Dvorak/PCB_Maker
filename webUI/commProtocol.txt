@@ -1,35 +1,161 @@
-commands:
+========================================================================
+ KOMUNIKACNI PROTOKOL
+========================================================================
 
-Position change: 1
-home: 2
-readGcode: 3
-home max: 4
-continue: 5
-
-emergency codes:
-
-stop: 4
-end: 5
-- will home to position max X, max Y, max Z
-
-nanoReport
-error codes:
-1 - gcode not found
-2 - UART occupied
-3 - by nano: bad message
-4 - by nano: ping response
-5 - by nano: unknown command
-6 - by nano: position out of range (clamped)
-7 - by nano: endstop hit & not homed
+Retez: frontend (browser)  <--HTTP-->  backend (Node, port 3300)
+       backend             <--TCP-->   nanoComm (C++, porty 5000 / 5001)
+       nanoComm            <--UART-->  Nano (115200 8-N-1)
 
 
+------------------------------------------------------------------------
+ TCP mezi backendem a nanoComm
+------------------------------------------------------------------------
 
-cmd pro nano:
-//cmd 1 = jednoduchy move, cmd 0 = ping a otestovani, cmd 2 = nastaveni rychlosti spindl, cmd 3 = homing, cmd 4 = homing na MAX vseho, cmd 5 zvednout pak jet, cmd 6 move Z
+port 5000 = prikazy a reporty
+port 5001 = emergency
 
-TCP comm protocol:
-start of message: $
-konec zpravy: /n
-emergency TCP:
-; = stop
-# = end
+zacatek zpravy: $
+konec zpravy:   \n
+
+emergency znaky (port 5001):
+  ; = pause
+  # = stop
+
+
+------------------------------------------------------------------------
+ CMD cisla pro Nano
+------------------------------------------------------------------------
+
+0   ping / otestovani linky
+1   jednoduchy move (X, Y)
+2   nastaveni otacek spindlu
+3   homing na MIN vsech osy
+4   homing na MAX vsech osy
+5   zvednout Z, pak jet (pokracovani v jobu)
+6   vypnout spindl
+7   ukonceni jobu: spindl off + homing na MAX
+8   relativni move (prictene k aktualni pozici)
+12  zadny prikaz, Nano preskoci a NEPOSILA report
+25  interni: loadCMD nedokazal zpravu rozparsovat
+255 stejne jako 7
+
+POZOR: cmd 12 je jediny prikaz, ktery neposila report. Vsechny ostatni
+report posilaji, a nanoComm na nej ceka v listenUART().
+
+
+------------------------------------------------------------------------
+ Emergency kody z frontendu
+------------------------------------------------------------------------
+
+stop:  4
+end:   5   (dojede homing na max X, max Y, max Z)
+
+
+------------------------------------------------------------------------
+ Format reportu Nano -> nanoComm
+------------------------------------------------------------------------
+
+$status;error;x;y;z;speed;spindleSpeed;endstops;\n
+
+Vsechny nekonstantni ciselne polozky krome status/error/endstops se
+posilaji jako CELE CISLO vynasobene 100 (float printf na avr-libc bez
+-lprintf_flt tiskne jen '?'). nanoComm je pri parsovani deli zpet 100.
+
+Priklad: X = 12.34 mm  ->  1234
+
+
+------------------------------------------------------------------------
+ STATUS - kdo report poslal
+------------------------------------------------------------------------
+
+0   Nano
+1   nanoComm (C++)
+2   backend (JS)
+
+Status je nutny k precteni erroru. Stejne cislo erroru znamena u kazdeho
+zdroje neco jineho (napr. 6 a 7 se pouzivaji u Nana i u nanoComm jinak).
+
+
+------------------------------------------------------------------------
+ ERROR kody
+------------------------------------------------------------------------
+
+--- status 0, hlasi Nano -----------------------------------------------
+
+0    OK, prikaz dobehl bez problemu
+3    Nano neumelo prijatou zpravu rozparsovat (poskozeny frame)
+4    odpoved na ping (neni to chyba, jen potvrzeni ze Nano zije)
+5    nezname cislo prikazu
+6    cil byl mimo pracovni prostor, byl clampnuty na nejblizsi hranu
+     -> stroj jel jinam, nez frontend chtel
+7    behem pohybu byl stisknut koncak, nebo stroj nikdy nebyl homovany
+     -> reportovana pozice uz neni verohodna, je potreba homovat
+8    ukonceni jobu: spindl vypnuty, vsechny osy homovane na max
+10   stisknuto emergency tlacitko (hardwarovy interrupt)
+     -> motory a spindl vypnute, timer1 zastaveny
+
+--- status 1, hlasi nanoComm (C++) -------------------------------------
+
+0    OK, komunikace bezi
+1    pozadovany soubor s G-kodem nebyl nalezen na disku
+2    UART je uz obsazeny, prikaz byl zahozeny
+3    pohyb odmitnut, stroj neni homovany (prikaz se na UART vubec neposlal)
+6    Nano se odpojilo od serioveho portu pri cteni reportu
+7    seriovy port neni otevreny
+
+--- status 2, hlasi backend (JS) ---------------------------------------
+
+0    backend jeste nedostal zadny report ze stroje
+33   nanoComm poslal neco, co neni platny JSON
+34   nanoComm poslal zpravu bez uvodniho znaku $
+
+
+------------------------------------------------------------------------
+ ENDSTOPS - bitova maska stisku koncaku
+------------------------------------------------------------------------
+
+Osma polozka reportu. Bitova maska, ktera rika, ktere koncaky byly
+stisknute BEHEM POSLEDNIHO PRIKAZU. Je latchovana (sticky): staci jeden
+stisk kdykoliv v prubehu pohybu a bit zustane nastaveny az do dalsiho
+prikazu. Nezajima nas kolikrat, jen jestli vubec.
+
+  bit 0   hodnota 1    X min   (esXFront)
+  bit 1   hodnota 2    X max   (esXEnd)
+  bit 2   hodnota 4    Y min   (esYFront)
+  bit 3   hodnota 8    Y max   (esYEnd)
+  bit 4   hodnota 16   Z min   (esZFront)
+  bit 5   hodnota 32   Z max   (esZEnd)
+
+  0    zadny koncak nebyl stisknuty
+  -1   stav koncaku neni znamy (backend jeste nic nedostal, nebo report
+       polozku endstops neobsahoval)
+
+Poradi bitu kopiruje poradi parametru v setupPins(): front (min) pak
+end (max), a osy X -> Y -> Z.
+
+Priklad: 9 = 1 + 8 = behem posledniho pohybu byl stisknuty X min a Y max.
+
+Kde se maska nastavuje:
+  - nuluje se v operateInstr() vedle currentError = 0
+  - OR-uje se v interuptX/Y/Z() tam, kde se uz dneska nastavuje
+    homed = false
+
+Proc samostatna polozka a ne cast erroru: error potrebuje 4 bity
+(hodnoty 0-10), maska 6 bitu, dohromady 10 bitu a to se do jednoho
+bajtu nevejde. Frame ma navic misto - typicky report ma ~36 znaku
+pri bufferu 64 B, takze jedna polozka navic je bezpecna.
+
+
+------------------------------------------------------------------------
+ Poznamka k zapojeni koncaku
+------------------------------------------------------------------------
+
+Koncaky jsou na INPUT_PULLUP a firmware cte LOW = stisknuto. Z toho
+plyne, ze NA D13 KONCAK NESMI BYT: na Nanu je tam onboard LED zapojena
+primo (na rozdil od Uno R3, kde je mezi tim buffer), interni pullup ji
+neprepere a pin cte natrvalo LOW. Osa pak stoji a nikdy neudela krok.
+
+Zapojeni je NO (rozpinaci do GND), takze "nestisknuto" = HIGH. Preruseny
+kabel proto vypada jako "vse v poradku" - stroj tise prijde o ochranu.
+NC zapojeni selhava bezpecnym smerem, je to jen otoceni podminky
+v interupt*().

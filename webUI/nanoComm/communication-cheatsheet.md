@@ -1,3 +1,10 @@
+> **HISTORICKY DOKUMENT - UZ NEPLATI.**
+> Popisuje navrh, kde backend predaval prikazy pres JSON soubory na disku
+> (`readTask()`, `doTask()`, fronta souboru). Dnes je to TCP na portech
+> 5000 (prikazy a reporty) a 5001 (emergency).
+> Aktualni popis je v `documentation/architecture.md`, zavazny protokol
+> v `webUI/commProtocol.txt`.
+
 # Communication Cheatsheet
 
 Short reference for communication between backend, `nanoComm` C++ code, and Arduino Nano.

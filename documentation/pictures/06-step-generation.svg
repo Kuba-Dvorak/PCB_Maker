@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 680" width="900" height="680" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { font-size: 21px; font-weight: 700; fill: #111827; }
+    .subtitle { font-size: 12.5px; fill: #6b7280; }
+    .h { font-size: 14.5px; font-weight: 700; }
+    .mono { font-size: 12px; fill: #374151; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .monob { font-size: 13px; font-weight: 700; fill: #111827; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .txt { font-size: 12px; fill: #4b5563; }
+    .arr { stroke: #9ca3af; stroke-width: 2.2; fill: none; }
+    .warnh { font-size: 13px; font-weight: 700; fill: #b91c1c; }
+    .warn { font-size: 12px; fill: #7f1d1d; }
+  </style>
+  <defs>
+    <marker id="g" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="680" fill="#ffffff"/>
+  <text class="title" x="36" y="40">How steps are generated</text>
+  <text class="subtitle" x="36" y="61">One timer runs fast, each axis divides it down. Everything else follows from that.</text>
+
+  <!-- formula -->
+  <rect x="36" y="86" width="828" height="80" rx="10" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.4"/>
+  <text class="mono" x="56" y="112">masterFreq = 10 × ( max(maxSpeedX, maxSpeedY, maxSpeedZ) / (2 × PULLEY_TEETH) ) × ( JUMPER × 200 )</text>
+  <text class="mono" x="56" y="134">           = 10 × ( 160 / 32 ) × 400</text>
+  <text class="monob" x="56" y="156">           = 20 000 Hz</text>
+
+  <path class="arr" d="M450,166 L450,196" marker-end="url(#g)"/>
+
+  <!-- timer -->
+  <rect x="300" y="196" width="300" height="66" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="1.8"/>
+  <text class="h" x="450" y="222" text-anchor="middle" fill="#047857">Timer1 in CTC mode</text>
+  <text class="mono" x="450" y="245" text-anchor="middle">ISR(TIMER1_COMPA_vect) @ 20 kHz</text>
+
+  <path class="arr" d="M450,262 L450,286" marker-end="url(#g)"/>
+  <path class="arr" d="M170,286 L170,326" marker-end="url(#g)"/>
+  <path class="arr" d="M450,286 L450,326" marker-end="url(#g)"/>
+  <path class="arr" d="M730,286 L730,326" marker-end="url(#g)"/>
+  <path class="arr" d="M170,286 L730,286" fill="none"/>
+
+  <!-- axes -->
+  <rect x="46" y="326" width="248" height="150" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.7"/>
+  <text class="h" x="66" y="352" fill="#1d4ed8">Axis X  ·  GT2 belt</text>
+  <text class="mono" x="66" y="376">12.5 steps / mm</text>
+  <text class="txt" x="66" y="398">at 160 mm/s:</text>
+  <text class="mono" x="66" y="418">freqX = 160 × 12.5 = 2000 Hz</text>
+  <text class="mono" x="66" y="440">counterXMax = 20000 / 2000</text>
+  <text class="monob" x="66" y="462">            = 10</text>
+
+  <rect x="326" y="326" width="248" height="150" rx="10" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.7"/>
+  <text class="h" x="346" y="352" fill="#6d28d9">Axis Y  ·  GT2 belt</text>
+  <text class="mono" x="346" y="376">12.5 steps / mm</text>
+  <text class="txt" x="346" y="398">at 160 mm/s:</text>
+  <text class="mono" x="346" y="418">freqY = 160 × 12.5 = 2000 Hz</text>
+  <text class="mono" x="346" y="440">counterYMax = 20000 / 2000</text>
+  <text class="monob" x="346" y="462">            = 10</text>
+
+  <rect x="606" y="326" width="248" height="150" rx="10" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.7"/>
+  <text class="h" x="626" y="352" fill="#b45309">Axis Z  ·  T8 leadscrew</text>
+  <text class="mono" x="626" y="376">200 steps / mm</text>
+  <text class="txt" x="626" y="398">at 10 mm/s:</text>
+  <text class="mono" x="626" y="418">freqZ = 10 × 200 = 2000 Hz</text>
+  <text class="mono" x="626" y="440">counterZMax = 20000 / 2000</text>
+  <text class="monob" x="626" y="462">            = 10</text>
+
+  <!-- the 16x note -->
+  <rect x="36" y="496" width="404" height="76" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text class="h" x="54" y="520" fill="#1d4ed8">Same counter, 16× different speed</text>
+  <text class="txt" x="54" y="542">All three columns above end at counter 10 — identical step</text>
+  <text class="txt" x="54" y="560">rate. Yet X moves 160 mm/s while Z moves only 10 mm/s.</text>
+
+  <!-- trap -->
+  <rect x="460" y="496" width="404" height="76" rx="10" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <text class="warnh" x="478" y="520">Integer division has no floor</text>
+  <text class="warn" x="478" y="542">Z at 160 mm/s would need 32000 Hz, and 20000 / 32000 = 0.</text>
+  <text class="warn" x="478" y="560">A counter of zero means the axis steps every single tick.</text>
+
+  <!-- ISR body -->
+  <rect x="36" y="588" width="828" height="76" rx="10" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.4"/>
+  <text class="h" x="56" y="612">Inside one ISR tick</text>
+  <text class="mono" x="56" y="634">stepAcc++ → when it passes stepAccMax, run the ramps (rampUpX / rampUpY / rampZ)</text>
+  <text class="mono" x="56" y="653">for each axis with clock == 1: counting++ → if counter ≤ counting → interupt*() emits a step</text>
+</svg>

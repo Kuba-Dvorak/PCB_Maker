@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 680" width="920" height="680" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { font-size: 21px; font-weight: 700; fill: #111827; }
+    .subtitle { font-size: 12.5px; fill: #6b7280; }
+    .pin { font-size: 12.5px; font-weight: 700; fill: #111827; font-family: ui-monospace, Menlo, Consolas, monospace; }
+    .fn { font-size: 12px; fill: #374151; }
+    .stub { stroke: #9ca3af; stroke-width: 1.6; }
+    .board { font-size: 14px; font-weight: 700; fill: #4b5563; }
+    .warn { font-size: 12px; fill: #7f1d1d; }
+    .warnh { font-size: 12.5px; font-weight: 700; fill: #b91c1c; }
+    .leg { font-size: 11.5px; fill: #4b5563; }
+  </style>
+
+  <rect width="920" height="680" fill="#ffffff"/>
+  <text class="title" x="36" y="40">Nano pin map</text>
+  <text class="subtitle" x="36" y="61">Set by one line: cnc myCNC = cnc({3,4,5,6,7,8,9}, {10,16,17,18,14,15});</text>
+
+  <!-- board -->
+  <rect x="390" y="96" width="150" height="424" rx="12" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.8"/>
+  <text class="board" x="465" y="300" text-anchor="middle" transform="rotate(-90 465 300)">Arduino Nano · ATmega328P</text>
+
+  <!-- LEFT -->
+  <g>
+    <line class="stub" x1="390" y1="130" x2="370" y2="130"/>
+    <text class="pin" x="366" y="134" text-anchor="end">D2</text>
+    <text class="fn" x="326" y="134" text-anchor="end">emergency button — currently commented out</text>
+    <circle cx="378" cy="130" r="3.5" fill="#ef4444"/>
+
+    <line class="stub" x1="390" y1="168" x2="370" y2="168"/>
+    <text class="pin" x="366" y="172" text-anchor="end">D3</text>
+    <text class="fn" x="326" y="172" text-anchor="end">ENABLE, all drivers, active LOW</text>
+    <circle cx="378" cy="168" r="3.5" fill="#6b7280"/>
+
+    <line class="stub" x1="390" y1="206" x2="370" y2="206"/>
+    <text class="pin" x="366" y="210" text-anchor="end">D4</text>
+    <text class="fn" x="326" y="210" text-anchor="end">X STEP</text>
+    <circle cx="378" cy="206" r="3.5" fill="#3b82f6"/>
+
+    <line class="stub" x1="390" y1="244" x2="370" y2="244"/>
+    <text class="pin" x="366" y="248" text-anchor="end">D5</text>
+    <text class="fn" x="326" y="248" text-anchor="end">X DIR</text>
+    <circle cx="378" cy="244" r="3.5" fill="#3b82f6"/>
+
+    <line class="stub" x1="390" y1="282" x2="370" y2="282"/>
+    <text class="pin" x="366" y="286" text-anchor="end">D6</text>
+    <text class="fn" x="326" y="286" text-anchor="end">Y STEP</text>
+    <circle cx="378" cy="282" r="3.5" fill="#8b5cf6"/>
+
+    <line class="stub" x1="390" y1="320" x2="370" y2="320"/>
+    <text class="pin" x="366" y="324" text-anchor="end">D7</text>
+    <text class="fn" x="326" y="324" text-anchor="end">Y DIR</text>
+    <circle cx="378" cy="320" r="3.5" fill="#8b5cf6"/>
+
+    <line class="stub" x1="390" y1="358" x2="370" y2="358"/>
+    <text class="pin" x="366" y="362" text-anchor="end">D8</text>
+    <text class="fn" x="326" y="362" text-anchor="end">Z STEP</text>
+    <circle cx="378" cy="358" r="3.5" fill="#10b981"/>
+
+    <line class="stub" x1="390" y1="396" x2="370" y2="396"/>
+    <text class="pin" x="366" y="400" text-anchor="end">D9</text>
+    <text class="fn" x="326" y="400" text-anchor="end">Z DIR</text>
+    <circle cx="378" cy="396" r="3.5" fill="#10b981"/>
+
+    <line class="stub" x1="390" y1="434" x2="370" y2="434"/>
+    <text class="pin" x="366" y="438" text-anchor="end">D10</text>
+    <text class="fn" x="326" y="438" text-anchor="end">endstop X min</text>
+    <circle cx="378" cy="434" r="3.5" fill="#f59e0b"/>
+
+    <line class="stub" x1="390" y1="472" x2="370" y2="472"/>
+    <text class="pin" x="366" y="476" text-anchor="end">D11</text>
+    <text class="fn" x="326" y="476" text-anchor="end">spindle PWM — Timer2, only free PWM pin</text>
+    <circle cx="378" cy="472" r="3.5" fill="#ec4899"/>
+  </g>
+
+  <!-- RIGHT -->
+  <g>
+    <line class="stub" x1="540" y1="130" x2="560" y2="130"/>
+    <text class="pin" x="564" y="134">D12</text>
+    <text class="fn" x="608" y="134">free</text>
+    <circle cx="552" cy="130" r="3.5" fill="#d1d5db"/>
+
+    <line class="stub" x1="540" y1="168" x2="560" y2="168"/>
+    <text class="pin" x="564" y="172">D13</text>
+    <text class="fn" x="608" y="172">free — but never an endstop, see below</text>
+    <circle cx="552" cy="168" r="3.5" fill="#ef4444"/>
+
+    <line class="stub" x1="540" y1="206" x2="560" y2="206"/>
+    <text class="pin" x="564" y="210">A0</text>
+    <text class="fn" x="608" y="210">endstop Z min</text>
+    <circle cx="552" cy="206" r="3.5" fill="#f59e0b"/>
+
+    <line class="stub" x1="540" y1="244" x2="560" y2="244"/>
+    <text class="pin" x="564" y="248">A1</text>
+    <text class="fn" x="608" y="248">endstop Z max</text>
+    <circle cx="552" cy="244" r="3.5" fill="#f59e0b"/>
+
+    <line class="stub" x1="540" y1="282" x2="560" y2="282"/>
+    <text class="pin" x="564" y="286">A2</text>
+    <text class="fn" x="608" y="286">endstop X max</text>
+    <circle cx="552" cy="282" r="3.5" fill="#f59e0b"/>
+
+    <line class="stub" x1="540" y1="320" x2="560" y2="320"/>
+    <text class="pin" x="564" y="324">A3</text>
+    <text class="fn" x="608" y="324">endstop Y min</text>
+    <circle cx="552" cy="320" r="3.5" fill="#f59e0b"/>
+
+    <line class="stub" x1="540" y1="358" x2="560" y2="358"/>
+    <text class="pin" x="564" y="362">A4</text>
+    <text class="fn" x="608" y="362">endstop Y max  (also I2C SDA)</text>
+    <circle cx="552" cy="358" r="3.5" fill="#f59e0b"/>
+
+    <line class="stub" x1="540" y1="396" x2="560" y2="396"/>
+    <text class="pin" x="564" y="400">A5</text>
+    <text class="fn" x="608" y="400">heartbeat, toggles every loop()  (also I2C SCL)</text>
+    <circle cx="552" cy="396" r="3.5" fill="#6b7280"/>
+  </g>
+
+  <!-- warnings -->
+  <rect x="36" y="548" width="416" height="104" rx="10" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <text class="warnh" x="54" y="572">Never put an endstop on D13</text>
+  <text class="warn" x="54" y="592">On the Nano the onboard LED sits directly on D13, with no</text>
+  <text class="warn" x="54" y="609">buffer (unlike the Uno R3). The internal pullup cannot win, the</text>
+  <text class="warn" x="54" y="626">pin reads LOW forever, and that axis never takes a single step.</text>
+
+  <rect x="472" y="548" width="412" height="104" rx="10" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5"/>
+  <text class="warnh" x="490" y="572" fill="#b45309">Switches are wired NO</text>
+  <text class="warn" x="490" y="592" fill="#78350f">INPUT_PULLUP, LOW = pressed, normally open to GND. So "not</text>
+  <text class="warn" x="490" y="609" fill="#78350f">pressed" is HIGH — and a broken wire looks exactly the same.</text>
+  <text class="warn" x="490" y="626" fill="#78350f">NC fails safe instead; in code it is one flipped condition.</text>
+
+  <!-- legend -->
+  <circle cx="612" cy="436" r="3.5" fill="#3b82f6"/><text class="leg" x="622" y="440">X</text>
+  <circle cx="646" cy="436" r="3.5" fill="#8b5cf6"/><text class="leg" x="656" y="440">Y</text>
+  <circle cx="680" cy="436" r="3.5" fill="#10b981"/><text class="leg" x="690" y="440">Z</text>
+  <circle cx="714" cy="436" r="3.5" fill="#f59e0b"/><text class="leg" x="724" y="440">endstop</text>
+  <circle cx="790" cy="436" r="3.5" fill="#ec4899"/><text class="leg" x="800" y="440">spindle</text>
+</svg>

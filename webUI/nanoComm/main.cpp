@@ -64,6 +64,7 @@ struct basicCMD {
         prepareString += ';';
         prepareString += std::to_string(z);
         prepareString += ';';
+        //standart for having pcb2gcode in mm/min -> mm/s
         prepareString += std::to_string(speed);
         prepareString += ';';
         prepareString += std::to_string(spindleSpeed);
@@ -86,21 +87,23 @@ struct nanoReport {
     Position position;
     float z;
     float speed, spindlSpeed;
+    uint8_t endstops;
 
-    nanoReport(uint8_t status = 0, uint8_t error = 0, Position position = {0, 0}, float z = 0, float speed = 0, float spindlSpeed = 0) {
+    nanoReport(uint8_t status = 0, uint8_t error = 0, Position position = {0, 0}, float z = 0, float speed = 0, float spindlSpeed = 0, uint8_t endstops = 0) {
         this->status = status;
         this->error = error;
         this->position = position;
         this->z = z;
         this->speed = speed;
         this->spindlSpeed = spindlSpeed;
+        this->endstops = endstops;
     }
 };
 
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Position, x, y);
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed, endstops);
 
 
 float loadNumberForData(int &currentChar, std::string &text) {
@@ -223,6 +226,13 @@ void datafieng(std::string &curString, nanoReport &changeReport) {
         return;
     }
     changeReport.spindlSpeed = loadNumberForData(curChar, curString) / 100;
+    if (reportHasDelimiter(curString, curChar, "spindleSpeed")) {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeReport.endstops = int(loadNumberForData(curChar, curString));
     return;
 }
 
@@ -319,8 +329,55 @@ struct uartComm {
         occupied = false;
     }
 
+    // Report z Nana nese jen cislo. Tohle ho prelozi do vety, aby se z konzole
+    // dalo poznat, co se stalo, bez listovani v commProtocol.txt. Error 0 se
+    // schvalne nelogruje - to by pri jobu psalo radek ke kazdemu prikazu.
     void consoleLogFromError(int error) {
-        //if-else tree of error codes and their meaning, will implement later
+        switch (error) {
+            case 0:
+                break;
+            case 3:
+                std::cout << "[NANO] Nano could not parse the command it received, the frame was damaged over UART." << std::endl;
+                break;
+            case 4:
+                std::cout << "[NANO] Ping answered, Nano is alive." << std::endl;
+                break;
+            case 5:
+                std::cout << "[NANO] Nano does not know this command number." << std::endl;
+                break;
+            case 6:
+                std::cout << "[NANO] Target was outside the work area and got clamped to the nearest edge, the machine moved somewhere else than requested." << std::endl;
+                break;
+            case 7:
+                std::cout << "[NANO] An endstop was hit during the move, or the machine was never homed. The reported position is no longer trustworthy." << std::endl;
+                break;
+            case 8:
+                std::cout << "[NANO] End of job, spindle is off and all axes are homed to maximum." << std::endl;
+                break;
+            case 10:
+                std::cout << "[NANO] EMERGENCY button pressed. Motors and spindle are off and the step timer is stopped." << std::endl;
+                break;
+            default:
+                std::cout << "[NANO] Unknown error code " << error << ", see commProtocol.txt." << std::endl;
+                break;
+        }
+    }
+
+    // Maska koncaku je latchovana za cely posledni prikaz, takze staci vypsat
+    // ji jednou po prijeti reportu. Nula je bezny stav a ta se nelogruje.
+    void consoleLogFromEndstops(uint8_t endstops) {
+        if (endstops == 0) {
+            return;
+        }
+
+        std::cout << "[NANO] Endstops hit during the last command (mask " << int(endstops) << "):";
+        if (endstops & 1)  { std::cout << " Xmin"; }
+        if (endstops & 2)  { std::cout << " Xmax"; }
+        if (endstops & 4)  { std::cout << " Ymin"; }
+        if (endstops & 8)  { std::cout << " Ymax"; }
+        if (endstops & 16) { std::cout << " Zmin"; }
+        if (endstops & 32) { std::cout << " Zmax"; }
+        std::cout << "." << std::endl;
     }
 
     nanoReport listenUART() {
@@ -338,6 +395,16 @@ struct uartComm {
             char buffer[64] = {};
             ssize_t result;
             bool started = false;
+            bool complete = false;
+
+            // VTIME = 1 znamena, ze read() se vraci prazdny kazdych 100 ms.
+            // Logovat kazdy takovy pokus by pri cekani na dlouhy pohyb zaplavilo
+            // konzoli tisicema radku a zahltilo UART hlaskou o tom, ze se ceka.
+            // Proto se hlasi az kazdy padesaty pokus, tedy zhruba po peti
+            // sekundach ticha - to uz je doba, kdy stoji za to vedet, ze se ceka.
+            const long logEveryNthPoll = 50;
+            long emptyReads = 0;
+            long ignoredChunks = 0;
 
             std::chrono::seconds timeOut = std::chrono::seconds(600);
             std::chrono::time_point deadLine = std::chrono::steady_clock::now() + timeOut;
@@ -346,7 +413,11 @@ struct uartComm {
                 result = read(serialID, buffer, 64);
 
                 if (result == 0) {
-                    std::cout << "[UART] Read timeout while waiting for Nano report on " << port << "." << std::endl;
+                    emptyReads += 1;
+                    if (emptyReads % logEveryNthPoll == 0) {
+                        std::cout << "[UART] Still waiting for a report from Nano on " << port
+                                  << ", roughly " << (emptyReads / 10) << " s of silence so far." << std::endl;
+                    }
                     continue;
                 }
 
@@ -364,7 +435,14 @@ struct uartComm {
                     size_t startChar = currentData.find('$');
 
                     if (startChar == std::string::npos) {
-                        std::cout << "[UART] Ignoring data without start marker on port " << port << "." << std::endl;
+                        ignoredChunks += 1;
+                        // Prvni zahozeny kus se hlasi hned, protoze uz jeden
+                        // znamena rozsypany ramec. Dal se to throttluje, aby
+                        // trvale zaneseny port neprevalcoval zbytek logu.
+                        if (ignoredChunks == 1 || ignoredChunks % logEveryNthPoll == 0) {
+                            std::cout << "[UART] Ignoring " << result << " B without a $ start marker on port " << port
+                                      << ", " << ignoredChunks << " chunk(s) dropped so far." << std::endl;
+                        }
                         continue;
                     }
 
@@ -386,6 +464,7 @@ struct uartComm {
                     else {
                         currentData.erase(endChar, 64);
                         readBuffer.append(currentData);
+                        complete = true;
                         break;
                     }
                 }
@@ -393,9 +472,23 @@ struct uartComm {
             }
 
             occupied = false;
+
+            // POZOR: kdyz vyprsi deadline, cyklus skonci uplne stejne jako po
+            // uspesnem prijeti a datafieng dole rozparsuje to, co zbylo v
+            // bufferu. Report pak odejde jako status 1 / error 0, tedy "vse
+            // v poradku", i kdyz Nano deset minut neposlalo nic. Nez se to
+            // opravi navratovou hodnotou, aspon at je to videt v konzoli.
+            if (!complete) {
+                std::cout << "[UART] Timed out after " << timeOut.count() << " s without a complete report from " << port
+                          << ". Start marker " << (started ? "was seen" : "never arrived")
+                          << ", " << readBuffer.length() << " B buffered. Nano is most likely stuck or reset."
+                          << std::endl;
+            }
+
             std::cout << "[UART] Received Nano report payload: " << readBuffer << std::endl;
             datafieng(readBuffer, data);
             consoleLogFromError(data.error);
+            consoleLogFromEndstops(data.endstops);
             return data;
         }
         std::cout << "[UART] Cannot listen: UART is already occupied." << std::endl;
@@ -511,7 +604,9 @@ struct gcodeDecoder {
             else if (curNum == 5) {
                 return 6;
             }
-            else if (curNum == 30) {
+            // pcb2gcode zavira soubor prikazem M2, jine generatory posilaji
+            // M30. Obe znamenaji konec programu, tak se bere oboji.
+            else if (curNum == 2 || curNum == 30) {
                 return 7;
             }
         }
@@ -531,7 +626,7 @@ struct gcodeDecoder {
             cmd.z = number;
         }
         else if (curChar == instructionChars[5]) {
-            cmd.speed = number;
+            cmd.speed = number / 60;
         }
         else if (curChar == instructionChars[6]) {
             cmd.spindleSpeed = number;
@@ -937,18 +1032,21 @@ struct communicator {
     }
 
 
+    // Bez homingu nema stroj zadnou referenci, takze pozice v reportu je jen
+    // cislo bez vyznamu a relativni pohyb muze skoncit natvrdo v konstrukci.
+    // Odmitnout to uz tady usetri cely UART round-trip a hlavne se uzivatel
+    // dozvi duvod, misto aby dostal zpatky jen odpoved na ping.
     void move(float x, float y, float z, float speed, float spindleSpeed) {
-        if (homed) {
-            myUART.sendBasicCMD(basicCMD(8, {x, y}, z, speed, spindleSpeed));
-            myTCPUser.sendData(myUART.listenUART());
+        if (!homed) {
+            std::cout << "[TASK] Move refused, machine is not homed. Requested X=" << x
+                      << " Y=" << y << " Z=" << z << " speed=" << speed
+                      << " spindle=" << spindleSpeed << "." << std::endl;
+            myTCPUser.sendData(nanoReport(1, 3));
+            return;
         }
 
-        else {
-            myUART.sendBasicCMD(basicCMD(0, {x, y}, z, speed, spindleSpeed));
-            std::cout << "[TASK] Pinging." << std::endl;
-            myTCPUser.sendData(myUART.listenUART());
-            std::cout << "[TASK] Invalid move task: machine not homed." << std::endl;
-        }
+        myUART.sendBasicCMD(basicCMD(8, {x, y}, z, speed, spindleSpeed));
+        myTCPUser.sendData(myUART.listenUART());
     }
 
 

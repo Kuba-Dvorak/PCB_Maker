@@ -42,7 +42,7 @@
                 </div>
 
                 <div class="z-controls">
-                    <span class="axis-label">Z axis</span>
+                    <span class="axis-label">Z axis <small id="zSpeedHint" class="axis-hint"></small></span>
                     <div class="button-group">
                         <button id="ZbuttP" class="jog-button jog-compact" type="button">Z+</button>
                         <button id="ZbuttM" class="jog-button jog-compact" type="button">Z−</button>
@@ -83,11 +83,32 @@
                     <p id="Status">Status: </p>
                     <p id="error">Error: </p>
                 </div>
+                <p id="errorMessage" class="error-message">Waiting for the first report</p>
                 <div class="telemetry-grid">
                     <p id="position" class="telemetry-position">X: Y: Z:</p>
                     <p id="speed">Speed: </p>
                     <p id="spindlSpeed">Spindle speed: </p>
                 </div>
+            </section>
+
+            <section class="panel endstop-panel" aria-labelledby="endstop-title">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Limit switches</p>
+                        <h2 id="endstop-title">Endstops hit during the last move</h2>
+                    </div>
+                    <span class="panel-badge">Latched</span>
+                </div>
+
+                <div class="endstop-grid">
+                    <span class="endstop-chip endstop-unknown" id="esXmin"><i aria-hidden="true"></i>X min</span>
+                    <span class="endstop-chip endstop-unknown" id="esXmax"><i aria-hidden="true"></i>X max</span>
+                    <span class="endstop-chip endstop-unknown" id="esYmin"><i aria-hidden="true"></i>Y min</span>
+                    <span class="endstop-chip endstop-unknown" id="esYmax"><i aria-hidden="true"></i>Y max</span>
+                    <span class="endstop-chip endstop-unknown" id="esZmin"><i aria-hidden="true"></i>Z min</span>
+                    <span class="endstop-chip endstop-unknown" id="esZmax"><i aria-hidden="true"></i>Z max</span>
+                </div>
+                <p id="endstopSummary" class="operation-result" role="status">Waiting for the first report</p>
             </section>
 
             <section class="panel emergency-panel" aria-labelledby="emergency-title">
@@ -113,26 +134,26 @@
                 <div class="panel-heading">
                     <div>
                         <p class="eyebrow">Job library</p>
-                        <h2 id="upload-title">Upload G-code</h2>
+                        <h2 id="upload-title">Upload Gerber</h2>
                     </div>
                 </div>
-                <label class="file-picker" for="gcodeInput">
+                <label class="file-picker" for="gerberInput">
                     <span class="file-picker-icon" aria-hidden="true">↑</span>
                     <span>
-                        <strong>Select a file</strong>
-                        <small>Choose a G-code file from your computer</small>
+                        <strong>Select a Gerber file</strong>
+                        <small>Copper, outline or drill file from your PCB editor</small>
                     </span>
-                    <input type="file" id="gcodeInput">
+                    <input type="file" id="gerberInput" accept=".gbr,.ger,.gbrjob,.gtl,.gbl,.gts,.gbs,.gto,.gbo,.gtp,.gbp,.gm1,.gko,.drl,.xln">
                 </label>
-                <button id="gcodeUpload" class="primary-button" type="button">Upload G-code</button>
-                <p id="uploadSuccesText" class="upload-feedback" role="status"></p>
+                <button id="gerberUpload" class="primary-button" type="button">Upload Gerber</button>
+                <p id="gerberFeedback" class="upload-feedback" role="status"></p>
             </section>
 
             <section class="panel gcodes-panel" aria-labelledby="gcodes-title">
                 <div class="panel-heading">
                     <div>
                         <p class="eyebrow">Saved jobs</p>
-                        <h2 id="gcodes-title">G-code list</h2>
+                        <h2 id="gcodes-title">Job list</h2>
                     </div>
                 </div>
                 <div id="GcodeList" class="gcode-list"></div>

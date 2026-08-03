@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 650" width="920" height="650" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <style>
+    .title { font-size: 21px; font-weight: 700; fill: #111827; }
+    .subtitle { font-size: 12.5px; fill: #6b7280; }
+    .actor { font-size: 13.5px; font-weight: 700; }
+    .msg { font-size: 11.5px; fill: #1f2937; }
+    .life { stroke: #cbd5e1; stroke-width: 1.6; stroke-dasharray: 5 5; }
+    .arr { stroke: #4b5563; stroke-width: 1.8; fill: none; }
+    .arrbad { stroke: #dc2626; stroke-width: 1.8; fill: none; }
+    .badtxt { font-size: 11.5px; fill: #b91c1c; font-weight: 600; }
+    .note { font-size: 11px; fill: #4b5563; }
+  </style>
+  <defs>
+    <marker id="s" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#4b5563"/>
+    </marker>
+    <marker id="sbad" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#dc2626"/>
+    </marker>
+  </defs>
+
+  <rect width="920" height="650" fill="#ffffff"/>
+  <text class="title" x="36" y="40">Manual jog — one button press</text>
+  <text class="subtitle" x="36" y="61">The frontend sends a relative step. nanoComm turns command 1 into basicCMD 8.</text>
+
+  <!-- actors -->
+  <rect x="40" y="82" width="140" height="34" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.6"/>
+  <text class="actor" x="110" y="104" text-anchor="middle" fill="#1d4ed8">Frontend</text>
+  <rect x="262" y="82" width="140" height="34" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.6"/>
+  <text class="actor" x="332" y="104" text-anchor="middle" fill="#6d28d9">Backend</text>
+  <rect x="492" y="82" width="140" height="34" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.6"/>
+  <text class="actor" x="562" y="104" text-anchor="middle" fill="#b45309">nanoComm</text>
+  <rect x="726" y="82" width="140" height="34" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.6"/>
+  <text class="actor" x="796" y="104" text-anchor="middle" fill="#047857">Nano</text>
+
+  <line class="life" x1="110" y1="116" x2="110" y2="600"/>
+  <line class="life" x1="332" y1="116" x2="332" y2="600"/>
+  <line class="life" x1="562" y1="116" x2="562" y2="600"/>
+  <line class="life" x1="796" y1="116" x2="796" y2="600"/>
+
+  <!-- 1 -->
+  <path class="arr" d="M110,155 L328,155" marker-end="url(#s)"/>
+  <text class="msg" x="116" y="149">POST /operate  { corect: true, cmd: "x", size, speed, spindleSpeed }</text>
+
+  <!-- 2 -->
+  <path class="arr" d="M332,200 L558,200" marker-end="url(#s)"/>
+  <text class="msg" x="338" y="194">$ { cmd: 1, x: size, y: -1, z: -1, speed, spindleSpeed }</text>
+
+  <!-- self note: -1 -->
+  <rect x="470" y="216" width="230" height="30" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.2"/>
+  <text class="note" x="482" y="235">-1 means "leave this axis alone" → 0</text>
+
+  <!-- homed check -->
+  <rect x="470" y="256" width="230" height="30" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.2"/>
+  <text class="note" x="482" y="275">move(): is the machine homed?</text>
+
+  <!-- refusal branch -->
+  <path class="arrbad" d="M558,308 L336,308" marker-end="url(#sbad)"/>
+  <text class="badtxt" x="352" y="302">not homed → nanoReport(1, 3), nothing goes to UART</text>
+
+  <!-- 3 -->
+  <path class="arr" d="M562,352 L792,352" marker-end="url(#s)"/>
+  <text class="msg" x="568" y="346">basicCMD(8) — relative move</text>
+
+  <rect x="700" y="368" width="196" height="44" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1.2"/>
+  <text class="note" x="712" y="386">Timer1 ISR generates steps,</text>
+  <text class="note" x="712" y="402">endstop bits latch into the mask</text>
+
+  <!-- 4 -->
+  <path class="arr" d="M796,438 L566,438" marker-end="url(#s)"/>
+  <text class="msg" x="576" y="432">$status;error;x;y;z;speed;spindle;endstops;</text>
+
+  <!-- 5 -->
+  <path class="arr" d="M562,483 L336,483" marker-end="url(#s)"/>
+  <text class="msg" x="346" y="477">$ { …report as JSON… }  → stored in currentReport</text>
+
+  <!-- 6 poll -->
+  <path class="arr" d="M110,528 L328,528" marker-end="url(#s)"/>
+  <text class="msg" x="116" y="522">POST /currentPrinterInfo   (independent polling loop)</text>
+
+  <!-- 7 -->
+  <path class="arr" d="M332,573 L114,573" marker-end="url(#s)"/>
+  <text class="msg" x="124" y="567">currentReport  → panels, error text, endstop chips</text>
+</svg>

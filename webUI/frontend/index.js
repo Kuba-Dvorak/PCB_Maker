@@ -20,14 +20,94 @@ const stepSizeValue = document.getElementById("stepSizeValue")
 const stepSpeedValue = document.getElementById("stepSpeedValue")
 const stepSpindleValue = document.getElementById("stepSpindleValue")
 
-const gcodeUpload = document.getElementById("gcodeUpload")
-const gcodeBackText = document.getElementById("uploadSuccesText")
+const zSpeedHint = document.getElementById("zSpeedHint")
+
+// Osa Z jede pres trapezovou tyc T8, tedy 200 kroku/mm proti 12.5 kroku/mm
+// u GT2 remene na X a Y. Stejna rychlost v mm/s tam znamena 16x vyssi
+// frekvenci kroku a nad timhle stropem uz motor kroky ztraci.
+// Skutecny limit si hlida firmware v maxSpeedZ - tohle je jen proto, aby
+// uzivatel dopredu videl, co se opravdu posle, a nedivil se, ze stroj
+// jede jinak, nez kam si posunul posuvnik.
+const maxSpeedZ = 10
+
+const gerberUpload = document.getElementById("gerberUpload")
+const gerberFeedback = document.getElementById("gerberFeedback")
+
+// Gerber nema jednu jedinou priponu. Tohle je rodina RS-274X / X2 plus
+// Excellon vrtaci soubory, ktere pcb2gcode taky potrebuje.
+// Zamerne tu NENI .txt, i kdyz nektere nastroje tak vrtani exportuji -
+// pustilo by to dovnitr cokoliv. Stejny seznam musi byt v backend/server.js.
+const gerberExtensions = [
+    ".gbr", ".ger", ".gbrjob",
+    ".gtl", ".gbl",
+    ".gts", ".gbs",
+    ".gto", ".gbo",
+    ".gtp", ".gbp",
+    ".gm1", ".gko",
+    ".drl", ".xln"
+]
 
 const printerStatus = document.getElementById("Status")
 const printerError = document.getElementById("error")
+const printerErrorMessage = document.getElementById("errorMessage")
 const printerPosition = document.getElementById("position")
 const printerSpeed = document.getElementById("speed")
 const printerSpindlSpeed = document.getElementById("spindlSpeed")
+const endstopSummary = document.getElementById("endstopSummary")
+
+// Bity musi souhlasit s poli endstopHits, ktere Nano posila v reportu.
+// Poradi je stejne jako v setupPins: front (min) pak end (max), X -> Y -> Z.
+const endstopChips = [
+    { element: document.getElementById("esXmin"), bit: 1,  label: "X min" },
+    { element: document.getElementById("esXmax"), bit: 2,  label: "X max" },
+    { element: document.getElementById("esYmin"), bit: 4,  label: "Y min" },
+    { element: document.getElementById("esYmax"), bit: 8,  label: "Y max" },
+    { element: document.getElementById("esZmin"), bit: 16, label: "Z min" },
+    { element: document.getElementById("esZmax"), bit: 32, label: "Z max" }
+]
+
+// Kdo report poslal. Stejna hodnota erroru znamena u kazdeho zdroje neco jineho,
+// proto se erory hledaji az podle statusu.
+const statusNames = {
+    0: "Nano",
+    1: "C++ communication",
+    2: "Backend"
+}
+
+const errorMessages = {
+    // status 0 - hlasi firmware v Nanu
+    0: {
+        0:  { level: "ok",   text: "Command finished without any problem." },
+        3:  { level: "bad",  text: "Nano could not parse the command it received. The frame was damaged on the way over UART." },
+        4:  { level: "ok",   text: "Ping answered. The Nano is alive and talking." },
+        5:  { level: "bad",  text: "Nano does not know this command number." },
+        6:  { level: "warn", text: "Target was outside the work area, so it was clamped to the nearest edge. The machine moved somewhere else than you asked." },
+        7:  { level: "bad",  text: "An endstop was hit during the move, or the machine was never homed. The reported position is no longer trustworthy - home the machine." },
+        8:  { level: "ok",   text: "End of job: spindle is off and all axes were homed to maximum." },
+        10: { level: "bad",  text: "Emergency button was pressed. Motors and spindle are off and the step timer is stopped." }
+    },
+    // status 1 - hlasi C++ demon nanoComm
+    1: {
+        0: { level: "ok",   text: "C++ communication is running." },
+        1: { level: "bad",  text: "The requested G-code file was not found on disk." },
+        2: { level: "bad",  text: "UART is already busy, the command was dropped." },
+        3: { level: "warn", text: "Move refused because the machine is not homed. Run HOME MIN or HOME MAX first." },
+        6: { level: "bad",  text: "Nano disconnected from the serial port while a report was being read." },
+        7: { level: "bad",  text: "Serial port is not open. Check the cable and the port name." }
+    },
+    // status 2 - hlasi tenhle JS backend
+    2: {
+        0:  { level: "warn", text: "Backend has not received any report from the machine yet." },
+        33: { level: "bad",  text: "C++ communication sent something that is not valid JSON." },
+        34: { level: "bad",  text: "C++ communication sent a message without the $ start marker." }
+    }
+}
+
+const levelPrefixes = {
+    ok: "",
+    warn: "Warning: ",
+    bad: "Problem: "
+}
 
 const operationResult = document.getElementById("operateAnswer")
 const gcodeList = document.getElementById("GcodeList")
@@ -35,11 +115,11 @@ const emergencyResult = document.getElementById("EmergencyID")
 const gcodeListArrNames = []
 
 /** @type {HTMLInputElement} */
-const gcodeFile = document.getElementById("gcodeInput")
+const gerberFile = document.getElementById("gerberInput")
 
-let currentSizeOperator = 10
-let currentSpeedSizeOperator = 10
-let currentSpindleSpeedSizeOperator = 10
+let currentSizeOperator = 0
+let currentSpeedSizeOperator = 0
+let currentSpindleSpeedSizeOperator = 0
 
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -232,7 +312,7 @@ function operateGcodeList(name, date, size, opperation) {
 }
 
 
-async function sendOperate(axis, size) {
+async function sendOperate(axis, size, speed, spindleSpeed) {
     try {
         const response = await fetch("http://localhost:3300/operate", {
             method: "POST",
@@ -242,7 +322,9 @@ async function sendOperate(axis, size) {
             body: JSON.stringify({
                 corect: true,
                 cmd: axis,
-                size: size
+                size: size,
+                speed: speed,
+                spindleSpeed: spindleSpeed
             })
         })
 
@@ -255,10 +337,24 @@ async function sendOperate(axis, size) {
 }
 
 
+function refreshZSpeedHint(feed) {
+    const capped = feed > maxSpeedZ
+    zSpeedHint.textContent = capped ? `capped at ${maxSpeedZ} mm/s` : `max ${maxSpeedZ} mm/s`
+    zSpeedHint.classList.toggle("hint-active", capped)
+}
+
+
 function jogButton(axis, direction) {
     return async function (event) {
         event.preventDefault()
-        await sendOperate(axis, direction * currentSizeOperator)
+        let speed = currentSpeedSizeOperator
+
+        if (axis === "z" && speed > maxSpeedZ) {
+            console.log(`[FE] Z jog feed ${speed} mm/s capped to ${maxSpeedZ} mm/s`)
+            speed = maxSpeedZ
+        }
+
+        await sendOperate(axis, direction * currentSizeOperator, speed, currentSpindleSpeedSizeOperator)
     }
 }
 
@@ -277,45 +373,77 @@ homeMinBut.addEventListener("click", homeButton("min"))
 homeMaxBut.addEventListener("click", homeButton("max"))
 
 bindSlider(stepSizeSlider, stepSizeValue, "mm", (value) => { currentSizeOperator = value })
-bindSlider(stepSpeedSlider, stepSpeedValue, "mm/s", (value) => { currentSpeedSizeOperator = value })
+bindSlider(stepSpeedSlider, stepSpeedValue, "mm/s", (value) => {
+    currentSpeedSizeOperator = value
+    refreshZSpeedHint(value)
+})
 bindSlider(stepSpindleSlider, stepSpindleValue, "rpm", (value) => { currentSpindleSpeedSizeOperator = value })
 
 
-gcodeUpload.addEventListener("click", async function (event) {
+function gerberExtensionOf(fileName) {
+    const lower = fileName.toLowerCase()
+    return gerberExtensions.find(extension => lower.endsWith(extension)) ?? null
+}
+
+
+gerberUpload.addEventListener("click", async function (event) {
     event.preventDefault()
 
-    if (gcodeFile.files.length === 0) {
-        alert('No file was uploaded')
-        gcodeBackText.textContent = 'No file was uploaded'
+    if (gerberFile.files.length === 0) {
+        gerberFeedback.textContent = "No file was selected"
         return
     }
 
-    const fileForm = new FormData
-    const nameGcode = gcodeFile.files[0].name
-    fileForm.append("gcode", gcodeFile.files[0])
-    const response = await fetch("http://localhost:3300/uploadGcode", {
-        method: "POST",
-        body: fileForm
-    })
+    const chosenFile = gerberFile.files[0]
+    const nameGerber = chosenFile.name
 
-    const data = await response.json()
-    gcodeBackText.textContent = data.answer
+    // Prvni kontrola je tady, druha na backendu. Tuhle jde obejit
+    // (accept v <input> je jen napoveda dialogu, ne validace), tu druhou ne.
+    if (!gerberExtensionOf(nameGerber)) {
+        console.warn("[FE] Upload rejected, not a Gerber extension:", nameGerber)
+        gerberFeedback.textContent = `"${nameGerber}" is not a Gerber file. Allowed: ${gerberExtensions.join(", ")}`
+        return
+    }
 
-    operateGcodeList(nameGcode, Date.now(), gcodeFile.files[0].size, "add")
-    const response2 = await fetch("http://localhost:3300/newDBGcodeIns", {
-                method: "POST",
-                headers: {
-                    "Content-Type" : "application/json"
-                },
-                body: JSON.stringify({
-                    time: Date.now(),
-                    size: gcodeFile.files[0].size,
-                    name: nameGcode
-                })
+    const fileForm = new FormData()
+    fileForm.append("gerber", chosenFile)
+
+    try {
+        const response = await fetch("http://localhost:3300/uploadGerber", {
+            method: "POST",
+            body: fileForm
+        })
+
+        const data = await response.json()
+        gerberFeedback.textContent = data.answer
+
+        // Do seznamu a do DB se zapisuje teprve az backend soubor prijal.
+        // Driv se to zapsalo vzdycky, i kdyz upload selhal.
+        if (!response.ok) {
+            console.warn("[FE] Backend rejected the Gerber:", data.answer)
+            return
+        }
+
+        operateGcodeList(nameGerber, Date.now(), chosenFile.size, "add")
+
+        const response2 = await fetch("http://localhost:3300/newDBGcodeIns", {
+            method: "POST",
+            headers: {
+                "Content-Type" : "application/json"
+            },
+            body: JSON.stringify({
+                time: Date.now(),
+                size: chosenFile.size,
+                name: nameGerber
             })
+        })
 
-    const data2 = await response2.json()
-    console.log("DB response:" + data2.answer)
+        const data2 = await response2.json()
+        console.log("[FE] DB response:", data2.answer)
+    } catch (err) {
+        console.error("[FE] Gerber upload failed:", err)
+        gerberFeedback.textContent = "Backend is not responding"
+    }
 })
 
 
@@ -342,6 +470,69 @@ async function loadGcodesFromDB() {
 }
 
 
+function describeError(status, error) {
+    const perStatus = errorMessages[status]
+
+    if (perStatus && perStatus[error]) {
+        return perStatus[error]
+    }
+
+    return { level: "warn", text: `Error code ${error} is not described anywhere, look into commProtocol.txt.` }
+}
+
+
+// Cisla z Nana jdou pres float v C++ a nlohmann je serializuje jako double,
+// takze v JSON prijde treba 12.340000152587891. Tady se to jen zobrazuje,
+// proto se to krati az na miste vypisu.
+function formatNumber(value, digits) {
+    const number = Number(value)
+
+    if (!Number.isFinite(number)) {
+        return "--"
+    }
+
+    return number.toFixed(digits)
+}
+
+
+function renderEndstops(mask) {
+    const known = Number.isInteger(mask) && mask >= 0
+    const hitNames = []
+
+    endstopChips.forEach(chip => {
+        if (!chip.element) {
+            return
+        }
+
+        chip.element.classList.remove("endstop-hit", "endstop-clear", "endstop-unknown")
+
+        if (!known) {
+            chip.element.classList.add("endstop-unknown")
+            return
+        }
+
+        if (mask & chip.bit) {
+            chip.element.classList.add("endstop-hit")
+            hitNames.push(chip.label)
+        } else {
+            chip.element.classList.add("endstop-clear")
+        }
+    })
+
+    if (!known) {
+        endstopSummary.textContent = "Endstop states are not present in the report yet."
+        return
+    }
+
+    if (hitNames.length === 0) {
+        endstopSummary.textContent = "No endstop was hit during the last move."
+        return
+    }
+
+    endstopSummary.textContent = `Hit during the last move: ${hitNames.join(", ")}.`
+}
+
+
 async function loadNanoReport() {
     let data
     try {
@@ -356,28 +547,25 @@ async function loadNanoReport() {
     } catch (err) {
         console.error("[FE] Telemetry could not be loaded:", err)
         printerStatus.textContent = "Status: backend is not responding"
+        printerError.textContent = "Error: --"
+        printerErrorMessage.textContent = "Problem: the frontend cannot reach the backend on port 3300. Nothing below is live."
+        printerErrorMessage.className = "error-message level-bad"
+        renderEndstops(undefined)
         return
     }
 
-    let statusContent = "Frontend"
-    let error = "Not connected"
-
-    if (data.status === 0) {
-        statusContent = "Nano"
-    }
-    if (data.status === 1) {
-        statusContent = "C++ communication"
-    }
-    if (data.status === 2) {
-        statusContent = "Backend"
-    }
-
-    // if-else strom na erory
+    const statusContent = statusNames[data.status] ?? `Unknown source (${data.status})`
+    const description = describeError(data.status, data.error)
 
     printerStatus.textContent = "Status: " + statusContent
-    printerError.textContent = "Error: " + error
-    printerPosition.textContent = `X: ${data.x} | Y: ${data.y} | Z: ${data.z}`
-    printerSpeed.textContent = "Speed: " + `${data.speed}`
-    printerSpindlSpeed.textContent = "Spindle speed: " + `${data.spindlSpeed}`
+    printerError.textContent = "Error: " + data.error
+    printerErrorMessage.textContent = levelPrefixes[description.level] + description.text
+    printerErrorMessage.className = `error-message level-${description.level}`
+
+    printerPosition.textContent = `X: ${formatNumber(data.x, 2)} | Y: ${formatNumber(data.y, 2)} | Z: ${formatNumber(data.z, 2)}`
+    printerSpeed.textContent = `Speed: ${formatNumber(data.speed, 2)} mm/s`
+    printerSpindlSpeed.textContent = `Spindle speed: ${formatNumber(data.spindlSpeed, 0)} rpm`
+
+    renderEndstops(data.endstops)
     // jeste nejaka zmena svetilka na to aby to signalizovalo zmenu telemetrie
 }
