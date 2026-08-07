@@ -87,10 +87,22 @@ const gcodeDir = "../gcodes"
 const millprojectPath = "../printer/millproject"
 fs.mkdirSync(gcodeDir, { recursive: true })
 
-// Pracovni prostor stroje. Musi sedet s MAX_X / MAX_Y v nanoCode/src/main.cpp.
-const machineMaxX = 75
+// Vzdalenost mezi koncaky. Musi sedet s MAX_X / MAX_Y / MAX_Z
+// v nanoCode/src/main.cpp.
+const machineMaxX = 60
 const machineMaxY = 95
 const machineMaxZ = 15
+
+// Odsazeni od dorazu, musi sedet s MINIMAL_DISTANCE_MM_X / _Y v nanoCode
+// a s x-offset / y-offset v printer/millproject. Levy dolni roh desky
+// lezi tady, protoze na (0,0) sedi koncaky Xmin a Ymin.
+const originOffsetX = 3
+const originOffsetY = 2
+
+// Pouzitelna plocha, ne vzdalenost mezi koncaky: odsazeni se odecita
+// na obou stranach, protoze i na druhem konci je doraz.
+const usableX = machineMaxX - 2 * originOffsetX
+const usableY = machineMaxY - 2 * originOffsetY
 
 const gerberStorage = multer.diskStorage({
     destination: gerberDir,
@@ -259,16 +271,20 @@ function checkBoardFits(stdoutText) {
     const boardX = Number(sizeMatch[2])
 
     // Vetsi deska by se jen orezala clampem v Nanu a vyrobila by zmetek,
-    // takze se to zastavi tady a nic se neposila dal.
-    if (boardX > machineMaxX || boardY > machineMaxY) {
-        console.error(`[JS] Board ${boardX} x ${boardY} mm does not fit into ${machineMaxX} x ${machineMaxY} mm`)
+    // takze se to zastavi tady a nic se neposila dal. Porovnava se proti
+    // pouzitelne plose, ne proti vzdalenosti mezi koncaky - deska zacina
+    // az na offsetu a stejny kus musi zbyt i na druhe strane.
+    if (boardX > usableX || boardY > usableY) {
+        console.error(`[JS] Board ${boardX} x ${boardY} mm does not fit into the usable ${usableX} x ${usableY} mm`)
+        console.error(`[JS] Usable area is ${machineMaxX} x ${machineMaxY} mm between the endstops, minus ${originOffsetX} mm in X and ${originOffsetY} mm in Y on each side`)
         return {
             ok: false,
-            answer: `Board is ${boardX} x ${boardY} mm, the machine can only do ${machineMaxX} x ${machineMaxY} mm`
+            answer: `Board is ${boardX} x ${boardY} mm, the machine can only do ${usableX} x ${usableY} mm`
         }
     }
 
-    console.log(`[JS] Board is ${boardX} x ${boardY} mm, fits into ${machineMaxX} x ${machineMaxY} mm`)
+    console.log(`[JS] Board is ${boardX} x ${boardY} mm, fits into the usable ${usableX} x ${usableY} mm`)
+    console.log(`[JS] Board origin sits at (${originOffsetX}, ${originOffsetY}) mm, place the bottom left corner there`)
     return { ok: true }
 }
 

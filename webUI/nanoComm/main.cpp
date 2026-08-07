@@ -46,7 +46,7 @@ struct basicCMD {
     Position position;
     float z, speed, spindleSpeed;
 
-    basicCMD(uint8_t cmd = 0, Position position = {-1, -1}, float z = -1, float speed = -1, float spindleSpeed = -1) {
+    basicCMD(uint8_t cmd = 12, Position position = {-1, -1}, float z = -1, float speed = -1, float spindleSpeed = -1) {
         this->command = cmd;
         this->position = position;
         this->z = z;
@@ -304,18 +304,69 @@ struct uartComm {
         std::cout << "[UART] Port " << port << " successfully opened at " << baundWith << " baud." << std::endl;
     }
 
+    // Prelozi cislo prikazu na jmeno podle commProtocol.txt, aby se z konzole
+    // dalo poznat, co se posila, bez listovani v tabulce.
+    const char* nameOfCMD(uint8_t command) {
+        switch (command) {
+            case 0:   return "ping";
+            case 1:   return "absolute move XY";
+            case 2:   return "set spindle speed";
+            case 3:   return "home to MIN";
+            case 4:   return "home to MAX";
+            case 5:   return "lift Z then move";
+            case 6:   return "spindle off";
+            case 7:   return "end of job";
+            case 8:   return "relative move";
+            case 12:  return "no instruction, Nano sends no report";
+            case 255: return "end of job";
+            default:  return "unknown command";
+        }
+    }
+
+    // -1 znamena "tohle pole ignoruj". Nesmi to byt pomlcka ani nic, co jde
+    // splest s minusem - na drat jde porad -1.000000, tohle je jen popisek.
+    std::string fieldOfCMD(float value) {
+        if (value == -1) {
+            return "unset";
+        }
+
+        std::ostringstream out;
+        out << std::fixed;
+        out.precision(2);
+        out << value;
+        return out.str();
+    }
+
     void sendBasicCMD(basicCMD cmd) {
         (void)cmd;
         occupied = true;
 
         if (serialID == -1) {
-            std::cout << "[UART] Cannot send command: serial port is not open." << std::endl;
+            std::cout << "[UART] Cannot send cmd " << int(cmd.command) << " (" << nameOfCMD(cmd.command)
+                      << "): serial port is not open." << std::endl;
             occupied = false;
             return;
         }
-        
+
         char buffer[64] = {};
         cmd.prepareForNano(buffer, sizeof(buffer));
+
+        // Ramec konci '\n', ktery by v logu udelal prazdny radek navic.
+        std::string frame(buffer);
+        if (!frame.empty() && frame.back() == '\n') {
+            frame.pop_back();
+        }
+
+        // Log jde pred write zamerne: kdyz zapis selze, prectou se ty dva radky
+        // za sebou jako "tohle jsem posilal" a "a takhle to dopadlo".
+        std::cout << "[UART] -> Nano: cmd " << int(cmd.command) << " (" << nameOfCMD(cmd.command) << ")"
+                  << " X=" << fieldOfCMD(cmd.position.x)
+                  << " Y=" << fieldOfCMD(cmd.position.y)
+                  << " Z=" << fieldOfCMD(cmd.z)
+                  << " speed=" << fieldOfCMD(cmd.speed)
+                  << " spindle=" << fieldOfCMD(cmd.spindleSpeed)
+                  << " | frame " << frame << std::endl;
+
         ssize_t result = write(serialID, buffer, strlen(buffer));
 
         if (result < 0) {
@@ -532,6 +583,10 @@ struct gcodeDecoder {
 
             if (curChar == '-') {
                 negativity = true;
+            }
+
+            if (curChar == '\n' || curChar == '\r') {
+                return -1;
             }
 
             currentChar += 1;
@@ -891,6 +946,7 @@ struct communicator {
     fs::path gcodePathRemebered;
     size_t rememberedChar = 0;
     nanoReport remeberedReport = nanoReport(1);
+    bool started = false;
 
     communicator(fs::path port) {
         this->myUART = uartComm(port, 115200);
@@ -946,7 +1002,14 @@ struct communicator {
 
         if (curReport.error != 0 && curReport.error != 4) {
             std::cout << "[UART] Arduino reported error code " << static_cast<int>(curReport.error) << "." << std::endl;
-            return false;
+            if (curReport.error == 7 && started) {
+                std::cout << "[GCODE] We were homing it ok?" << std::endl;
+                started = false;
+            }
+
+            else {
+                return false;
+            }
         }
 
         if (curReport.status == 1) {
@@ -966,8 +1029,10 @@ struct communicator {
                 return false;
             }
         }
+
         if (cmd.command == 254) {
             std::cout << "[GCODE] Unsupported command encountered, skipping." << std::endl;
+            myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
         }
         return true;
     }
@@ -1000,13 +1065,13 @@ struct communicator {
             return;
         }
 
+        if (homed) {
+            myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
+        }
+
         if (!homed) {
             myUART.sendBasicCMD(basicCMD(3));
             homed = true;
-        }
-
-        else {
-            myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
         }
 
         std::stringstream buffer;
@@ -1020,6 +1085,7 @@ struct communicator {
         }
 
         toContinue = false;
+        started = true;
 
         while (advance) {
             advance = doGcodeTask(decoder);

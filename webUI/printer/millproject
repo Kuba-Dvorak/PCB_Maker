@@ -24,10 +24,25 @@ metricoutput=true
 
 
 # --- pocatek souradnic ------------------------------------------------
-# Posune desku tak, aby zacinala v (0,0). Bez tohohle by souradnice
-# mohly vyjit zaporne podle toho, kde deska lezela v PCB editoru,
-# a firmware zaporne X/Y clampne na 0 (error 6).
+# zero-start posune desku tak, aby zacinala v (0,0) bez ohledu na to,
+# kde lezela v PCB editoru. Bez tohohle by souradnice mohly vyjit
+# zaporne a firmware zaporne X/Y clampne (error 6).
 zero-start=true
+
+# Jenze (0,0) stroje NENI pouzitelny bod - tam sedi koncaky Xmin a Ymin.
+# Nejnizsi misto, kam se smi jet, je MINIMAL_DISTANCE_MM_X / _Y
+# z nanoCode/src/main.cpp, tedy prave tam, kam odjede moveFromEndstops()
+# po homingu. Offset posune celou desku o tenhle kus dal od dorazu.
+#
+#   x-offset = MINIMAL_DISTANCE_MM_X = 3
+#   y-offset = MINIMAL_DISTANCE_MM_Y = 2
+#
+# Levy dolni roh desky tim padem lezi na (3, 2) a fyzicky ji tam je
+# potreba i polozit. Zmena tehle dvou cisel se MUSI promitnout
+# i do originOffsetX / originOffsetY v backend/server.js, jinak
+# kontrola velikosti desky pusti vetsi kus, nez se vejde.
+x-offset=3
+y-offset=2
 
 
 # --- osa Z ------------------------------------------------------------
@@ -35,26 +50,37 @@ zero-start=true
 #
 # pcb2gcode normalne pouziva zapornou Z pro rez (zwork=-0.05 znamena
 # 0.05 mm pod povrch medi). Firmware ale Z clampuje do rozsahu
-# 0 az MAX_Z (25 mm) a zaporne hodnoty srazi na 0 s errorem 6,
+# 0 az MAX_Z (15 mm) a zaporne hodnoty srazi na 0 s errorem 6,
 # takze by kazdy rezny pohyb sel po povrchu a nic by se nevyfrezovalo.
 #
-# Reseni: cely souradny system je posunuty nahoru. Povrch medi
-# NENI Z=0, ale Z=2.0. Vsechny hodnoty tim padem zustanou kladne
-# a firmware se nemusi menit.
+# Reseni: cely souradny system je posunuty nahoru. Z roste NAHORU,
+# Z = 0 je doraz Zmin uplne dole. Povrch medi tedy neni Z=0.
 #
-#   Z = 2.00   povrch medi   (referencni rovina, sama se nikam nepise)
-#   Z = 1.95   hloubka rezu  (0.05 mm pod povrch)
-#   Z = 4.00   bezpecna vyska pro rychloposuvy
-#   Z = 10.00  vyska pro vymenu nastroje
+# Hodnoty nize jsou ZMERENE na stroji, ne odhadnute:
 #
-# Kdyz budes chtit rezat hloubeji, SNIZUJ zwork (1.95 -> 1.90 je
-# 0.10 mm hluboko). Cim mensi cislo, tim hloubeji.
+#   Z = 10.00  bezpecna vyska pro rychloposuvy (zsafe)
+#   Z =  1.20  povrch medi (referencni rovina, sama se nikam nepise)
+#   Z =  1.10  hloubka rezu, 0.10 mm pod povrch (zwork)
+#   Z =  0.00  doraz Zmin - to je 1.2 mm POD povrchem medi
+#
+# Kdyz budes chtit rezat hloubeji, SNIZUJ zwork (1.10 -> 1.05 je
+# 0.15 mm hluboko). Cim mensi cislo, tim hloubeji.
+#
+# !!! DOLNI STROP JE 1.0, NE 0.0 !!!
+# clampZ() v nanoCode/src/main.cpp dnes dela tohle:
+#     if (z <= MINIMAL_DISTANCE_MM_Z) { z = 0; }
+# Cokoliv na 1.0 nebo niz se tedy NEomezi na 1.0, ale spadne rovnou
+# na 0, tedy 1.2 mm pod med. Hrot 0.2 mm to neprezije. Mezi zwork
+# = 1.10 a timhle propadlem je 0.1 mm rezervy, takze zwork nizsi nez
+# 1.05 nesahat, dokud se ten clamp neopravi.
+#
+# zchange je 12.0, tedy nad zsafe a porad pod MAX_Z 15.
 #
 # pcb2gcode na to vypise varovani "Engraving depth (--zwork) is
 # greater than zero!" - to je v poradku a je to ocekavane.
-zsafe=4.0
-zwork=1.95
-zchange=10.0
+zsafe=10.0
+zwork=1.1
+zchange=12.0
 
 
 # --- frezovani --------------------------------------------------------
@@ -89,9 +115,30 @@ nom6=true
 # --- optimalizace -----------------------------------------------------
 # eulerian-paths zabrani frezovani stejne cesty dvakrat.
 # Pozor: "optimise" ve verzi 2.5.0 uz NENI true/false, ale delka
-# (povolena odchylka). Vychozi hodnota 0.00254 mm je zapnuta sama,
-# takze se tu neuvadi. V millproject_example, co je pribaleny
+# (povolena odchylka). V millproject_example, co je pribaleny
 # ke zdrojakum, je jeste stara boolean varianta a rozbije parsovani.
+#
+# optimise=0.04mm NENI kosmetika, je to shoda s rozlisenim stroje.
+# Firmware pocita kroky takhle (move2D):
+#     maxStepX = abs(stepLenghtGT2 * lenghtX)     // int, orizne se
+# stepLenghtGT2 je 12.5 kroku/mm, jeden krok je tedy 0.08 mm. Kratsi
+# pohyb na ose vyjde po oriznuti jako NULA kroku a "if (freqX != 0)"
+# tu osu rovnou preskoci. Zbytek se navic zahodi, protoze
+# myToolHead.position dostane cilovou souradnici, ne ujetou.
+#
+# Vychozi tolerance pcb2gcode je 0.00254 mm, tedy 31x jemnejsi nez
+# jeden krok - generuje detail, ktery stroj neumi ujet. Zmereno na
+# testGerber/smiley.GTL, pocet segmentu s aspon jednou mrtvou osou:
+#
+#     0.00254 mm (vychozi)  222 pohybu, 38 % degradovanych, 29 uplne mrtvych
+#     0.02 mm               174 pohybu, 16 %,                 0 uplne mrtvych
+#     0.04 mm               142 pohybu,  8 %,                 0 uplne mrtvych
+#     0.08 mm               120 pohybu,  4 %,                 0 uplne mrtvych
+#
+# 0.04 mm je pulka kroku: odchylka zustane pod rozlisenim stroje
+# a "uplne mrtve" pohyby (nehne se nic, prikaz jen zabere cas
+# a jeden report) zmizi uplne. Vic uz kazi geometrii viditelne.
+optimise=0.04mm
 eulerian-paths=true
 tsp-2opt=true
 
@@ -126,9 +173,17 @@ tsp-2opt=true
 #    G00 a G01. Pole I a J v instructionChars zustanou nevyuzita.
 #
 # 5) VELIKOST DESKY  [VYRESENO]
-#    Stroj ma 75 x 95 mm. pcb2gcode pri exportu vypise rozmery
-#    ("Height: ... Width: ..."), backend je cte v checkBoardFits()
-#    a vetsi desku zastavi jeste pred odeslanim do Nana.
+#    Stroj ma MAX_X 60 x MAX_Y 95 mm, ale to je vzdalenost mezi
+#    koncaky, ne pouzitelna plocha. Odsazeni se odecita na OBOU
+#    stranach - zacatek je na offsetu a konec musi zustat stejny
+#    kus pred protejsim dorazem:
+#
+#      X:  60 - 2*3 = 54 mm
+#      Y:  95 - 2*2 = 91 mm
+#
+#    pcb2gcode pri exportu vypise rozmery ("Height: ... Width: ..."),
+#    backend je cte v checkBoardFits() a vetsi desku zastavi jeste
+#    pred odeslanim do Nana.
 #
 # 6) OTACKY VRETENA JSOU V CELE ULOZE JEDNO CISLO
 #    mill-speed=20000 se objevi jednou v hlavicce jako "S20000"
@@ -136,3 +191,22 @@ tsp-2opt=true
 #    controlSpindl() udela digitalWrite(HIGH) a PWM pri frezovani
 #    vubec nebezi. Snizeni mill-speed treba na 19000 da stridu 242
 #    a PWM se zapne i s pripadnym pistenim.
+#
+# 7) PREJEZDY V REZNE HLOUBCE  [NEVYRESENO, POZOR PRI OSTREM BEHU]
+#    pcb2gcode obcas spoji dve samostatne izolacni smycky primym
+#    G01 v hloubce zwork misto toho, aby zvedl na zsafe a prejel
+#    rychloposuvem. Na smiley.GTL jsou takove pohyby ctyri, nejdelsi
+#    ma 15.5 mm, a vedou pres mista, kde se rezat nema.
+#
+#    Neni to nastavenim tohohle souboru. Overeno na:
+#      eulerian-paths=false            4 -> 3 pohyby, ten 15.5 mm zustal
+#      eulerian-paths+tsp-2opt=false   3 pohyby, zustal
+#      path-finding-limit=30           4 pohyby, zustal
+#      isolation-width=0.4 i 0.6       zustal (jen jinak dlouhy)
+#      optimise 0.00254 az 0.08 mm     zustal
+#
+#    NA SUCHO (bez desky) je to neskodne. NA DESCE to znamena rylo
+#    tazene skrz med tam, kde ma zustat spoj. Pred prvnim ostrym
+#    behem je potreba bud najit spravny prepinac v pcb2gcode, nebo
+#    si ty prejezdy odchytit v backendu a rozdelit je na
+#    zvednuti / rychloposuv / zajezd.

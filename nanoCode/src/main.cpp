@@ -10,12 +10,14 @@
 #define LEAD_T8 2
 #define JUMPER 2
 #define PULLEY_TEETH 16
-#define MAX_X 75
+#define MAX_X 60
 #define MAX_Y 95
-#define MAX_Z 25
+#define MAX_Z 15
 #define MAX_SPEED 160
 #define SPINDL_PIN 11
-#define MINIMAL_DISTANCE_STEP 25
+#define MINIMAL_DISTANCE_MM_X 3
+#define MINIMAL_DISTANCE_MM_Y 2
+#define MINIMAL_DISTANCE_MM_Z 1
 #define MAX_ACC 150
 #define START_FREQ 100
 
@@ -86,24 +88,6 @@ struct motorNema17 {
     uint8_t stepPin, dirPin, endStopFrontPin, endStopEndPin;
     volatile uint8_t* portStep, *portESF, *portESE;
     bool movingAwayFromEndStop = false;
-
-    void moveAwayFromEndStop(bool direction) {
-        if (!movingAwayFromEndStop) {
-            movingAwayFromEndStop = true;
-            if (direction) {
-                digitalWrite(dirPin, HIGH);
-            } else {
-                digitalWrite(dirPin, LOW);
-            }
-            for (int i = 0; i < MINIMAL_DISTANCE_STEP; ++i) {
-                *portStep |= stepPin;
-                delayMicroseconds(2);
-                *portStep &= ~stepPin;
-                delayMicroseconds(2);
-            }
-            movingAwayFromEndStop = false;
-        }
-    }
 };
 
 
@@ -174,6 +158,7 @@ struct calibration {
     volatile uint16_t startStepsX, startStepsY, startStepsZ;
     volatile uint16_t endStepsX, endStepsY, endStepsZ;
     volatile uint8_t currentEndstopsError;
+    volatile uint8_t ignoreEndstop;
     
     calibration(float maxAcc = MAX_ACC,uint16_t maxSpeedX = MAX_SPEED, uint16_t maxSpeedY = MAX_SPEED, uint16_t maxSpeedZ = MAX_SPEED,
                 uint8_t pulleyNumTeeth = PULLEY_TEETH, uint8_t jumperDown = JUMPER, uint8_t leadT8 = LEAD_T8, uint8_t maxX = MAX_X, uint8_t maxY = MAX_Y, uint8_t maxZ = MAX_Z) {
@@ -187,6 +172,7 @@ struct calibration {
         this->maxY = maxY;
         this->maxZ = maxZ;
         this->currentEndstopsError = 0;
+        this->ignoreEndstop = 0;
 
         this->stepTime = 2; // in microsekunds
 
@@ -283,6 +269,7 @@ struct calibration {
 
         enablePin = enablePinArg;
         pinMode(enablePin, OUTPUT);
+        pinMode(SPINDL_PIN, OUTPUT);
 
         motorX.dirPin = dirXpin;  pinMode(dirXpin, OUTPUT);
         motorY.dirPin = dirYpin;  pinMode(dirYpin, OUTPUT);
@@ -347,7 +334,6 @@ toolheadInfo basicToolHead() {
 calibration myCalib = calibration();
 //change value
 volatile bool spindlON = true;
-uint8_t spindlPin = SPINDL_PIN;
 
 
 static void timer1Start() {
@@ -370,17 +356,17 @@ static void timer1Stop() {
 
 
 void interuptX() {
-    if (!(*myCalib.motorX.portESF & myCalib.motorX.endStopFrontPin) || !(*myCalib.motorX.portESE & myCalib.motorX.endStopEndPin) || myCalib.curStepX >= myCalib.maxStepX) {
+    if ((!(*myCalib.motorX.portESF & myCalib.motorX.endStopFrontPin) && !(myCalib.ignoreEndstop & 1)) ||
+        (!(*myCalib.motorX.portESE & myCalib.motorX.endStopEndPin) && !(myCalib.ignoreEndstop & 2)) ||
+        myCalib.curStepX >= myCalib.maxStepX) {
         myCalib.endFreqX();
         myCalib.finishedJob += 1;
         myCalib.curStepX = 0;
         if (!(*myCalib.motorX.portESF & myCalib.motorX.endStopFrontPin)) {
-            myCalib.motorX.moveAwayFromEndStop(true);
             myCalib.homed = false;
             myCalib.currentEndstopsError |= 1;
         }
         if (!(*myCalib.motorX.portESE & myCalib.motorX.endStopEndPin)) {
-            myCalib.motorX.moveAwayFromEndStop(false);
             myCalib.homed = false;
             myCalib.currentEndstopsError |= (1 << 1);
         }
@@ -424,17 +410,16 @@ void rampUpX() {
 
 
 void interuptY() {
-    if (!(*myCalib.motorY.portESF & myCalib.motorY.endStopFrontPin) || !(*myCalib.motorY.portESE & myCalib.motorY.endStopEndPin) || myCalib.curStepY >= myCalib.maxStepY) {
+    if ((!(*myCalib.motorY.portESF & myCalib.motorY.endStopFrontPin) && !(myCalib.ignoreEndstop & 4)) ||
+        (!(*myCalib.motorY.portESE & myCalib.motorY.endStopEndPin) && !(myCalib.ignoreEndstop & 8)) || myCalib.curStepY >= myCalib.maxStepY) {
         myCalib.endFreqY();
         myCalib.finishedJob += 1;
         myCalib.curStepY = 0;
         if (!(*myCalib.motorY.portESF & myCalib.motorY.endStopFrontPin)) {
-            myCalib.motorY.moveAwayFromEndStop(true);
             myCalib.homed = false;
             myCalib.currentEndstopsError |= (1 << 2);
         }
         if (!(*myCalib.motorY.portESE & myCalib.motorY.endStopEndPin)) {
-            myCalib.motorY.moveAwayFromEndStop(false);
             myCalib.homed = false;
             myCalib.currentEndstopsError |= (1 << 3);
         }
@@ -478,17 +463,16 @@ void rampUpY() {
 
 
 void interuptZ() {
-    if (!(*myCalib.motorZ.portESF & myCalib.motorZ.endStopFrontPin) || !(*myCalib.motorZ.portESE & myCalib.motorZ.endStopEndPin) || myCalib.curStepZ >= myCalib.maxStepZ) {
+    if ((!(*myCalib.motorZ.portESF & myCalib.motorZ.endStopFrontPin) && !(myCalib.ignoreEndstop & 16)) || (!(*myCalib.motorZ.portESE & myCalib.motorZ.endStopEndPin) && !(myCalib.ignoreEndstop & 32))
+        || myCalib.curStepZ >= myCalib.maxStepZ) {
         myCalib.endFreqZ();
         myCalib.finishedJob += 1;
         myCalib.curStepZ = 0;
         if (!(*myCalib.motorZ.portESF & myCalib.motorZ.endStopFrontPin)) {
-            myCalib.motorZ.moveAwayFromEndStop(true);
             myCalib.homed = false;
             myCalib.currentEndstopsError |= (1 << 4);
         }
         if (!(*myCalib.motorZ.portESE & myCalib.motorZ.endStopEndPin)) {
-            myCalib.motorZ.moveAwayFromEndStop(false);
             myCalib.homed = false;
             myCalib.currentEndstopsError |= (1 << 5);
         }
@@ -535,7 +519,7 @@ void rampZ() {
 //a single turning off function
 void emergencyButtonInterupt() {
     digitalWrite(myCalib.enablePin, HIGH);
-    analogWrite(spindlPin, 0);
+    analogWrite(SPINDL_PIN, 0);
     spindlON = false;
     myCalib.endFreqX();
     myCalib.endFreqY();
@@ -694,19 +678,84 @@ struct cnc {
         //Serial.println("Succesfully initialized baundrate");
         delay(100);
         timer1Start();
-        TCCR2B = (TCCR2B & 0b11111000) | 0b001;
         myCalib.setupPins(motorPins[0],motorPins[1],motorPins[2],endStop[0],endStop[1],
             motorPins[3],motorPins[4],endStop[2],endStop[3],motorPins[5],motorPins[6],endStop[4],endStop[5]);
         digitalWrite(myCalib.enablePin, LOW);
         myCalib.finishedJob = 0;
-        pinMode(EMERGENCY_PIN, INPUT_PULLUP);
-        attachInterrupt(digitalPinToInterrupt(EMERGENCY_PIN), emergencyButtonInterupt, FALLING);
+        //pinMode(EMERGENCY_PIN, INPUT_PULLUP);
+        //attachInterrupt(digitalPinToInterrupt(EMERGENCY_PIN), emergencyButtonInterupt, FALLING);
         //Serial.println("initialized baundrate emergency etc...");
     }
 
     void operateCMD5(basicCMD &cmd) {
         moveZ(cmd.z);
         move2D(cmd.position);
+    }
+
+    // Odjeti z endstopu. Cte zalatchovane bity, ktere nastavil interupt*():
+    // 0 Xmin, 1 Xmax, 2 Ymin, 3 Ymax, 4 Zmin, 5 Zmax.
+    void moveFromEndstops() {
+        if (myCalib.currentEndstopsError == 0) {
+            return;
+        }
+
+        Position target = {-1, -1};
+        float targetZ = -1;
+        myToolHead.speed = MAX_SPEED / 2;
+
+        // Sepnuty endstop je jedina poloha, ktere se po najeti da verit - osa
+        // stoji na svem dorazu. move2D i moveZ ale pocitaji smer a vzdalenost
+        // z myToolHead, a ten drzi cil posledniho prikazu, ne misto kde se
+        // stroj doopravdy zastavil. Bez toho prepisu by odjezd vysel o
+        // nesmyslny kus a klidne na spatnou stranu.
+        if (myCalib.currentEndstopsError & 1) {
+            myToolHead.position.x = 0;
+            target.x = MINIMAL_DISTANCE_MM_X;
+            myCalib.ignoreEndstop |= 1;
+        }
+
+        else if (myCalib.currentEndstopsError & (1 << 1)) {
+            myToolHead.position.x = myCalib.maxX + MINIMAL_DISTANCE_MM_X;
+            target.x = myCalib.maxX;
+            myCalib.ignoreEndstop |= 2;
+        }
+
+        if (myCalib.currentEndstopsError & (1 << 2)) {
+            myToolHead.position.y = 0;
+            target.y = MINIMAL_DISTANCE_MM_Y;
+            myCalib.ignoreEndstop |= 4;
+        }
+
+        else if (myCalib.currentEndstopsError & (1 << 3)) {
+            myToolHead.position.y = myCalib.maxY + MINIMAL_DISTANCE_MM_Y;
+            target.y = myCalib.maxY;
+            myCalib.ignoreEndstop |= 8;
+        }
+
+        if (myCalib.currentEndstopsError & (1 << 4)) {
+            myToolHead.z = 0;
+            targetZ = MINIMAL_DISTANCE_MM_Z;
+            myCalib.ignoreEndstop |= 16;
+        }
+
+        else if (myCalib.currentEndstopsError & (1 << 5)) {
+            myToolHead.z = myCalib.maxZ + MINIMAL_DISTANCE_MM_Z;
+            targetZ = myCalib.maxZ ;
+            myCalib.ignoreEndstop |= 32;
+        }
+
+        // Poradi jako v operateCMD5, nejdriv Z pak XY: pri sepnutem Zmin stoji
+        // hrot dole v desce a pohyb v XY by ho tahal skrz med.
+        if (targetZ != -1) {
+            moveZ(targetZ);
+        }
+
+        // Volat move2D s obema -1 by znamenalo nulovou delku, tedy totalTime 0
+        // a deleni nulou ve freqX/freqY.
+        if (target.x != -1 || target.y != -1) {
+            move2D(target);
+        }
+        myCalib.ignoreEndstop = 0;
     }
 
     void home(bool dir) {
@@ -747,7 +796,6 @@ struct cnc {
             //wait
         }
 
-
         if (dir) {
             myToolHead.position.x = myCalib.maxX;
             myToolHead.position.y = myCalib.maxY;
@@ -759,6 +807,8 @@ struct cnc {
             myToolHead.position.y = 0;
             myToolHead.z = 0;
         }
+        myCalib.finishedJob = 0;
+        moveFromEndstops();
         myCalib.homed = true;
     }
 
@@ -773,13 +823,13 @@ struct cnc {
             myCalib.currentError = 6;
         }
 
-        if (location.x < 0) {
-            location.x = 0;
+        if (location.x < MINIMAL_DISTANCE_MM_X-.1) {
+            location.x = MINIMAL_DISTANCE_MM_X-.1;
             myCalib.currentError = 6;
         }
 
-        if (location.y < 0) {
-            location.y = 0;
+        if (location.y < MINIMAL_DISTANCE_MM_Y-.1) {
+            location.y = MINIMAL_DISTANCE_MM_Y-.1;
             myCalib.currentError = 6;
         }
     }
@@ -790,8 +840,8 @@ struct cnc {
             myCalib.currentError = 6;
         }
 
-        if (z < 0) {
-            z = 0;
+        if (z < MINIMAL_DISTANCE_MM_Z) {
+            z = MINIMAL_DISTANCE_MM_Z;
             myCalib.currentError = 6;
         }
     }
@@ -804,14 +854,18 @@ struct cnc {
         basicCMD cmd = loadCMD();
         //Serial.print("Operating instruction");
 
-        if (!(cmd.speed == -1) && (cmd.command != 2)) {
+        if ((cmd.speed >= -.5) && (cmd.command != 2)) {
             if (cmd.speed > MAX_SPEED) {
                 cmd.speed = MAX_SPEED;
             }
             myToolHead.speed = cmd.speed;
         }
 
-        if (!(cmd.spindleSpeed == -1) && (cmd.command != 6)) {
+        if (cmd.spindleSpeed <= -0.5) {
+            controlSpindl(myToolHead.spindleSpeed);
+        }
+
+        if ((cmd.spindleSpeed >= -.5) && (cmd.command != 6)) {
             controlSpindl(cmd.spindleSpeed);
         }
 
@@ -869,6 +923,7 @@ struct cnc {
             myCalib.currentError = 5;
         }
 
+        moveFromEndstops();
         //Serial.println("Sending report");
         report = nanoReport(0, myCalib.currentError, {myToolHead.position.x, myToolHead.position.y,}, myToolHead.z, myToolHead.speed, myToolHead.spindleSpeed, myCalib.currentEndstopsError);
         sendNanoReport();
@@ -880,7 +935,7 @@ struct cnc {
         //Serial.print("Loading S");
         memset(cmdBuf, 0, sizeof(cmdBuf));
         if (Serial.find('$')) {
-            Serial.print("Loading L");
+            //Serial.print("Loading L");
             len = Serial.readBytesUntil('\n', cmdBuf, 63);
             cmdBuf[len] = '\0';
             int curChar = 0;
@@ -950,7 +1005,7 @@ struct cnc {
 
     void moveZ(float z) {
         myCalib.finishedJob = 1;
-        if (z == myToolHead.z || z == -1) {
+        if (z == myToolHead.z || z <= -.5) {
             return;
         }
 
@@ -991,11 +1046,11 @@ struct cnc {
 
     void move2D(Position location) {
         myCalib.finishedJob = 2;
-        if (location.x == -1) {
+        if (location.x < -.5) {
             location.x = myToolHead.position.x;
         }
 
-        if (location.y == -1) {
+        if (location.y < -.5) {
             location.y = myToolHead.position.y;
         }
 
@@ -1052,16 +1107,20 @@ struct cnc {
             return;
         }
         if (spindlON) {
+            myToolHead.spindleSpeed = speed;
             speed = (int)((float)speed * conversionConst);
             if (speed <= 0) {
-                digitalWrite(spindlPin, LOW);
+                digitalWrite(SPINDL_PIN, LOW);
                 return;
             }
             if (speed >= 255) {
-                digitalWrite(spindlPin, HIGH);
+                digitalWrite(SPINDL_PIN, HIGH);
                 return;
             }
-            analogWrite(spindlPin, speed);
+            analogWrite(SPINDL_PIN, speed);
+        }
+        else {
+            myToolHead.spindleSpeed = 555;
         }
     }
 };
