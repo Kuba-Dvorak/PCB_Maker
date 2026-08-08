@@ -19,5 +19,8 @@
     "socket": "^1.1.143",
     "socket.io": "^4.8.3",
     "sqlite3": "^6.0.1"
+  },
+  "allowScripts": {
+    "sqlite3@6.0.1": true
   }
 }

@@ -11,7 +11,7 @@
 #define JUMPER 2
 #define PULLEY_TEETH 16
 #define MAX_X 60
-#define MAX_Y 95
+#define MAX_Y 80
 #define MAX_Z 15
 #define MAX_SPEED 160
 #define SPINDL_PIN 11
@@ -325,7 +325,7 @@ toolheadInfo basicToolHead() {
     toolHead.position.x = 0;
     toolHead.position.y = 0;
     toolHead.z = 0;
-    toolHead.speed = 1;
+    toolHead.speed = MAX_SPEED / 4;
     toolHead.spindleSpeed = 0;
 
     return toolHead;
@@ -702,12 +702,6 @@ struct cnc {
         Position target = {-1, -1};
         float targetZ = -1;
         myToolHead.speed = MAX_SPEED / 2;
-
-        // Sepnuty endstop je jedina poloha, ktere se po najeti da verit - osa
-        // stoji na svem dorazu. move2D i moveZ ale pocitaji smer a vzdalenost
-        // z myToolHead, a ten drzi cil posledniho prikazu, ne misto kde se
-        // stroj doopravdy zastavil. Bez toho prepisu by odjezd vysel o
-        // nesmyslny kus a klidne na spatnou stranu.
         if (myCalib.currentEndstopsError & 1) {
             myToolHead.position.x = 0;
             target.x = MINIMAL_DISTANCE_MM_X;
@@ -737,21 +731,16 @@ struct cnc {
             targetZ = MINIMAL_DISTANCE_MM_Z;
             myCalib.ignoreEndstop |= 16;
         }
-
         else if (myCalib.currentEndstopsError & (1 << 5)) {
             myToolHead.z = myCalib.maxZ + MINIMAL_DISTANCE_MM_Z;
-            targetZ = myCalib.maxZ ;
+            targetZ = myCalib.maxZ;
             myCalib.ignoreEndstop |= 32;
         }
 
-        // Poradi jako v operateCMD5, nejdriv Z pak XY: pri sepnutem Zmin stoji
-        // hrot dole v desce a pohyb v XY by ho tahal skrz med.
         if (targetZ != -1) {
             moveZ(targetZ);
         }
 
-        // Volat move2D s obema -1 by znamenalo nulovou delku, tedy totalTime 0
-        // a deleni nulou ve freqX/freqY.
         if (target.x != -1 || target.y != -1) {
             move2D(target);
         }
@@ -840,8 +829,8 @@ struct cnc {
             myCalib.currentError = 6;
         }
 
-        if (z < MINIMAL_DISTANCE_MM_Z) {
-            z = MINIMAL_DISTANCE_MM_Z;
+        if (z < MINIMAL_DISTANCE_MM_Z -.1) {
+            z = MINIMAL_DISTANCE_MM_Z-.1;
             myCalib.currentError = 6;
         }
     }
@@ -854,7 +843,7 @@ struct cnc {
         basicCMD cmd = loadCMD();
         //Serial.print("Operating instruction");
 
-        if ((cmd.speed >= -.5) && (cmd.command != 2)) {
+        if ((cmd.speed >= .1) && (cmd.command != 2)) {
             if (cmd.speed > MAX_SPEED) {
                 cmd.speed = MAX_SPEED;
             }
@@ -871,6 +860,9 @@ struct cnc {
 
         if (cmd.command == 1) {
             move2D(cmd.position);
+            if (cmd.z >= -.5) {
+                moveZ(cmd.z);
+            }
         }
 
         else if (cmd.command == 0) {
@@ -907,6 +899,8 @@ struct cnc {
             cmd.position.x += myToolHead.position.x;
             cmd.position.y += myToolHead.position.y;
             cmd.z += myToolHead.z;
+            clampLocation(cmd.position);
+            clampZ(cmd.z);
             operateCMD5(cmd);
         }
 
@@ -1011,6 +1005,10 @@ struct cnc {
 
 
         clampZ(z);
+
+        if (myToolHead.speed <= 0.1) {
+            myToolHead.speed = 0.1;
+        }
         if (z >= myToolHead.z) {
             digitalWrite(myCalib.motorZ.dirPin, HIGH);
         }
@@ -1028,9 +1026,23 @@ struct cnc {
             freqZ = int(myToolHead.speed * myCalib.stepLenghtT8);
         }
 
+        // maxStepZ MUSI byt nastaveny drive nez setupFreqZ, protoze ten zapne
+        // clockZ a tim spusti interuptZ. Do te chvile ISR porovnava curStepZ
+        // proti hodnote z PREDCHOZIHO pohybu Z - a kdyz byla mensi, zastavi
+        // pohyb hned na zacatku. moveZ pak stejne zapise myToolHead.z = z,
+        // takze se osa nikam nedostane, ale firmware si mysli, ze je na cili.
+        // move2D to ma spravne uz ted (maxStepX/Y pred setupFreqX/Y), Z bylo
+        // jedine s obracenym poradim.
+        //
+        // +0.5 je zaokrouhleni, ne orezani. Obe Z jsou floaty poskladane
+        // v loadNum() z desetinneho textu, takze rozdil dvou sousednich
+        // hodnot vzdalenych presne jeden krok vyjde 0.99999994 a ne 1.0.
+        // Pri pouhem prevodu na int by z toho byla nula a korekce naklonu
+        // stolu, kterou posila nanoComm, by se cela zahodila.
+        myCalib.maxStepZ = (int)(myCalib.stepLenghtT8 * fabs(z - myToolHead.z) + 0.5f);
+
         myCalib.finishedJob -= 1;
         myCalib.setupFreqZ(freqZ);
-        myCalib.maxStepZ = abs(myCalib.stepLenghtT8 * (z - myToolHead.z));
 
 
         while (myCalib.finishedJob < 1) {
@@ -1055,6 +1067,10 @@ struct cnc {
         }
 
         clampLocation(location);
+
+        if (myToolHead.speed <= 0.1) {
+            myToolHead.speed = 0.1;
+        }
 
         if (location.x >= myToolHead.position.x) {
             digitalWrite(myCalib.motorX.dirPin, HIGH);

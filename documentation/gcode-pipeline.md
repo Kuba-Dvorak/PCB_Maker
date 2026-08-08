@@ -42,7 +42,9 @@ have been deleted by hand.
 Exporting front... DONE. (Height: 23.2198mm Width: 49.164mm)
 ```
 
-and compares them against `machineMaxX` / `machineMaxY` (75 × 95 mm). A larger
+and compares them against the usable area (54 × 76 mm, i.e. `machineMaxX` /
+`machineMaxY` of 60 × 80 mm minus `originOffsetX` / `originOffsetY` on both
+sides). A larger
 board is stopped right there. If it were let through, the firmware would simply
 clamp the coordinates, raise error 6 and produce scrap.
 
@@ -60,16 +62,26 @@ pcb2gcode normally uses **negative Z for cutting** — `zwork=-0.05` means
 would therefore ride across the surface and mill nothing at all.
 
 The fix: **the whole coordinate system is shifted upwards.** The copper surface
-is not Z = 0, it is Z = 2.0.
+is not Z = 0, it is Z = 1.2 — measured, with Z = 0 being the Zmin endstop.
 
 | Z | Meaning |
 |---|---|
-| 2.00 | copper surface, the reference plane (never written anywhere) |
-| 1.95 | cut depth, i.e. 0.05 mm below the surface (`zwork`) |
-| 4.00 | safe height for rapid moves (`zsafe`) |
-| 10.00 | tool change height (`zchange`) |
+| 12.00 | tool change height (`zchange`) |
+| 10.00 | safe height for rapid moves (`zsafe`) |
+| 1.20 | copper surface, the reference plane (never written anywhere) |
+| 1.10 | the `zwork` written by pcb2gcode — see below, it is only a marker |
+| 0.00 | Zmin endstop, 1.2 mm **below** the copper |
 
-Cutting deeper means **lowering** `zwork`. From 1.95 to 1.90 is 0.10 mm deep.
+Cutting deeper means **lowering** `zwork`. From 1.10 to 1.05 is 0.15 mm deep.
+
+`clampZ()` snaps anything below `MINIMAL_DISTANCE_MM_Z` (1.0) straight to 1.0
+and raises error 6, so 1.05 is the practical floor.
+
+**`zwork` is not the depth that actually gets cut.** The bed is not level — it
+drops towards max X — so `gcodeDecoder` in nanoComm replaces the Z of every
+cutting move with a value interpolated from X (`cutZForX()`), between 1.20 at
+X = 3 and 1.05 at X = 57. The 1.10 in the millproject only marks a move as
+"this one is cutting". Change one and you must change the other.
 
 pcb2gcode prints a warning for this: `Engraving depth (--zwork) is greater than
 zero!`. That is expected and fine.

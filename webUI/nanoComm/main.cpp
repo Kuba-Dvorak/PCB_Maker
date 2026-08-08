@@ -1,6 +1,8 @@
 #include <iostream>
+#include <algorithm>
 #include <array>
 #include <cerrno>
+#include <ctime>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
@@ -27,6 +29,146 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+
+
+// Vsechno, co jde na konzoli, se zaroven zapisuje do souboru v logs/. Bez
+// toho se po zavreni terminalu ztrati cely prubeh jobu, coz je pri hledani
+// chyby na stroji presne to, co clovek potrebuje nejvic.
+//
+// Je to streambuf a ne obalka nad kazdym std::cout, aby se nemuselo sahat
+// na zadny z existujicich vypisu - staci vymenit buffer v main().
+//
+// Do souboru se pred kazdy radek pise cas. Na konzoli ne, tam by jen prekazel,
+// ale ve zpetne analyze je casovani to nejcennejsi (jak dlouho trval zajezd,
+// za jak dlouho prisel report).
+class logTee : public std::streambuf {
+public:
+    logTee(std::streambuf *consoleBuf, fs::path directory, std::string prefix, long maxLines = 15000)
+        : console(consoleBuf), dir(std::move(directory)), namePrefix(std::move(prefix)), lineLimit(maxLines) {
+        std::error_code err;
+        fs::create_directories(dir, err);
+        openNewFile();
+    }
+
+    ~logTee() override {
+        if (file.is_open()) {
+            file.flush();
+            file.close();
+        }
+    }
+
+    fs::path currentPath() const {
+        return activePath;
+    }
+
+protected:
+    int overflow(int c) override {
+        if (c == EOF) {
+            return !EOF;
+        }
+
+        if (console != nullptr) {
+            console->sputc(static_cast<char>(c));
+        }
+
+        if (!file.is_open()) {
+            return c;
+        }
+
+        if (atLineStart) {
+            file << nowText("[%H:%M:%S] ");
+            atLineStart = false;
+        }
+
+        file.put(static_cast<char>(c));
+
+        if (c == '\n') {
+            atLineStart = true;
+            writtenLines += 1;
+            // Flush po kazdem radku schvalne: kdyz proces spadne nebo ho
+            // nekdo zabije, nesmi se ztratit prave ten posledni radek.
+            file.flush();
+
+            if (writtenLines >= lineLimit) {
+                openNewFile();
+            }
+        }
+
+        return c;
+    }
+
+    int sync() override {
+        if (console != nullptr) {
+            console->pubsync();
+        }
+
+        if (file.is_open()) {
+            file.flush();
+        }
+
+        return 0;
+    }
+
+private:
+    static std::string nowText(const char *format) {
+        std::time_t raw = std::time(nullptr);
+        std::tm parts = {};
+        localtime_r(&raw, &parts);
+        char text[64] = {};
+        std::strftime(text, sizeof(text), format, &parts);
+        return std::string(text);
+    }
+
+    void openNewFile() {
+        if (file.is_open()) {
+            file << "--- limit " << lineLimit << " lines reached, continuing in a new file ---\n";
+            file.close();
+        }
+
+        std::string stamp = nowText("%Y-%m-%d_%H-%M-%S");
+        fs::path candidate = dir / (namePrefix + "-" + stamp + ".txt");
+
+        // Dve rotace ve stejne sekunde jsou nepravdepodobne, ale prepsat
+        // predchozi log by bylo horsi nez oskliva pripona.
+        for (int attempt = 2; fs::exists(candidate) && attempt < 1000; attempt += 1) {
+            candidate = dir / (namePrefix + "-" + stamp + "-" + std::to_string(attempt) + ".txt");
+        }
+
+        activePath = candidate;
+        file.open(activePath, std::ios::out | std::ios::app);
+        writtenLines = 0;
+        atLineStart = true;
+    }
+
+    std::streambuf *console;
+    std::ofstream file;
+    fs::path dir, activePath;
+    std::string namePrefix;
+    long writtenLines = 0;
+    long lineLimit;
+    bool atLineStart = true;
+};
+
+
+// Slozka s logy. CNC_LOG_DIR ma prednost, jinak se odvodi od umisteni binarky
+// (build/nanoComm -> ../../logs = webUI/logs), aby to nezaviselo na tom,
+// odkud se demon spustil - pod systemd je cwd typicky "/".
+fs::path resolveLogDir() {
+    const char *fromEnv = std::getenv("CNC_LOG_DIR");
+
+    if (fromEnv != nullptr && fromEnv[0] != '\0') {
+        return fs::path(fromEnv);
+    }
+
+    std::error_code err;
+    fs::path self = fs::read_symlink("/proc/self/exe", err);
+
+    if (err) {
+        return fs::path("logs");
+    }
+
+    return fs::weakly_canonical(self.parent_path() / ".." / ".." / "logs", err);
+}
 
 
 struct Position {
@@ -89,6 +231,12 @@ struct nanoReport {
     float speed, spindlSpeed;
     uint8_t endstops;
 
+    // Postup v G-kodu. Nano o radcich nic nevi, tyhle dve pole plni az
+    // nanoComm v doGcodeTask. -1 znamena "zadny job nebezi" - podle toho
+    // frontend pozna, jestli ma zamknout jogovani.
+    int gcodeLine = -1;
+    int gcodeLines = -1;
+
     nanoReport(uint8_t status = 0, uint8_t error = 0, Position position = {0, 0}, float z = 0, float speed = 0, float spindlSpeed = 0, uint8_t endstops = 0) {
         this->status = status;
         this->error = error;
@@ -103,7 +251,7 @@ struct nanoReport {
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Position, x, y);
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed, endstops);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed, endstops, gcodeLine, gcodeLines);
 
 
 float loadNumberForData(int &currentChar, std::string &text) {
@@ -383,7 +531,7 @@ struct uartComm {
     // Report z Nana nese jen cislo. Tohle ho prelozi do vety, aby se z konzole
     // dalo poznat, co se stalo, bez listovani v commProtocol.txt. Error 0 se
     // schvalne nelogruje - to by pri jobu psalo radek ke kazdemu prikazu.
-    void consoleLogFromError(int error) {
+    void consoleLogFromError(int error, uint8_t endstops = 0) {
         switch (error) {
             case 0:
                 break;
@@ -399,8 +547,21 @@ struct uartComm {
             case 6:
                 std::cout << "[NANO] Target was outside the work area and got clamped to the nearest edge, the machine moved somewhere else than requested." << std::endl;
                 break;
+            // Error 7 ma dve uplne ruzne priciny a driv se obe hlasily stejnou
+            // vetou, coz se nedalo rozlisit. Maska koncaku je rozhodne: kdyz
+            // je nenulova, endstop se sepnul PRAVE ted. Kdyz je nula, jde
+            // o myCalib.homed = false, ktery je LEPKAVY - interuptZ ho shodi
+            // pri prvnim doteku koncaku a zpatky ho zvedne uz jen home().
+            // Do te doby hlasi error 7 uplne kazdy dalsi pohyb.
             case 7:
-                std::cout << "[NANO] An endstop was hit during the move, or the machine was never homed. The reported position is no longer trustworthy." << std::endl;
+                if (endstops != 0) {
+                    std::cout << "[NANO] An endstop was hit during this move. The reported position is no longer trustworthy." << std::endl;
+                }
+
+                else {
+                    std::cout << "[NANO] Machine is not homed, so every move reports error 7 until homing runs again."
+                              << " No endstop was hit by this particular command." << std::endl;
+                }
                 break;
             case 8:
                 std::cout << "[NANO] End of job, spindle is off and all axes are homed to maximum." << std::endl;
@@ -538,7 +699,7 @@ struct uartComm {
 
             std::cout << "[UART] Received Nano report payload: " << readBuffer << std::endl;
             datafieng(readBuffer, data);
-            consoleLogFromError(data.error);
+            consoleLogFromError(data.error, data.endstops);
             consoleLogFromEndstops(data.endstops);
             return data;
         }
@@ -553,6 +714,39 @@ struct gcodeDecoder {
     size_t currentChar;
     std::array<char, 2> commandChars = {'G', 'M'};
     std::array<char, 7> instructionChars = {'X', 'Y', 'Z', 'I', 'J', 'F', 'S'};
+
+    // --- naklon stolu -----------------------------------------------------
+    // Deska stolu neni vodorovna, smerem k max X klesa. Korekce je linearni
+    // v X a je to vlastnost STROJE, ne desky - proto se pocita ze souradnic
+    // stroje a ne z rozsahu, ktery ma zrovna nacteny soubor. Kdyby se brala
+    // z desky, dostala by mala deska uprostred stolu cely spad na par mm.
+    //
+    // Zmerene hodnoty: v hloubce rezu musi hrot stat na Z 1.20 na X 3
+    // a na Z 1.05 na X 57. Plati pro souradny system, kde Z = 0 je doraz
+    // Zmin, tedy 1.2 mm pod povrchem medi.
+    // Vypinac pro A/B test. false = zadna korekce, do kazdeho rezneho pohybu
+    // se dosadi rovnou gcodeCutZ, takze se Z za celou dratu nehne a chova se
+    // to jako pred zavedenim levelingu. Slouzi k rozliseni, jestli pripadny
+    // problem dela naklon, nebo neco jineho.
+    bool tiltEnabled = true;
+
+    float tiltXMin = 3.0f, tiltXMax = 57.0f;
+    float tiltZAtXMin = 1.20f, tiltZAtXMax = 1.05f;
+
+    // Hloubka rezu, kterou pise pcb2gcode (zwork v printer/millproject).
+    // Slouzi jen jako znacka "tenhle Z je rezny", skutecnou hodnotu urcuji
+    // tiltZAtXMin/Max vyse. Kdyz se zmeni millproject, musi se zmenit i tady.
+    float gcodeCutZ = 1.1f;
+
+    // Kroku na 1 mm osy Z, musi sedet se stepLenghtT8 v nanoCode/src/main.cpp.
+    float zStepsPerMM = 200.0f;
+
+    // Stav, ktery samotny radek G-kodu nenese. pcb2gcode pise Z jen kdyz se
+    // meni, takze "G01 X.. Y.." samo o sobe nerekne, jestli se rezze nebo
+    // prejizdi nad deskou. A M3 posila bez S.
+    float lastX = -1;
+    float lastSpindleSpeed = -1;
+    bool cutting = false;
 
     gcodeDecoder(std::string gcodeText = "", size_t currentChar = 0) {
         this->gcodeText = gcodeText;
@@ -689,6 +883,95 @@ struct gcodeDecoder {
     }
 
 
+    // Hloubka rezu pro dane X po zapocteni naklonu stolu, zaokrouhlena na
+    // cely krok osy Z. To zaokrouhleni neni kosmetika: sklon je 0.0028 mm
+    // na 1 mm X, takze na beznem segmentu (median 0.23 mm) vyjde zmena Z
+    // na desetinu kroku. Kdyby se posilaly nezaokrouhlene hodnoty, firmware
+    // by kazdou z nich orizl na nula kroku a naklon by se nikdy neprojevil.
+    // Takhle se Z drzi na mrizce a posune se o presne jeden krok vzdycky,
+    // kdyz uz na nej X ujelo dost.
+    float cutZForX(float x) const {
+        if (!tiltEnabled) {
+            return gcodeCutZ;
+        }
+
+        if (x < tiltXMin) {
+            x = tiltXMin;
+        }
+
+        if (x > tiltXMax) {
+            x = tiltXMax;
+        }
+
+        float ratio = (x - tiltXMin) / (tiltXMax - tiltXMin);
+        float wanted = tiltZAtXMin + (tiltZAtXMax - tiltZAtXMin) * ratio;
+
+        return std::round(wanted * zStepsPerMM) / zStepsPerMM;
+    }
+
+
+    // Doplni do instrukce to, co v ni pcb2gcode nenapsal, ale firmware to
+    // potrebuje: otacky vretena a Z opravene o naklon stolu. Obojí zavisi
+    // na predchozich radcich, proto to nemuze byt v createCMD().
+    void applyMachineState(basicCMD &cmd) {
+        // pcb2gcode posila "M3" bez S. Bez zapamatovani posledniho S by
+        // controlSpindl() dostal -1, hned by se vratil a vreteno by po
+        // uvodnim M5 zustalo stat cely job.
+        if (cmd.spindleSpeed > -0.5f) {
+            lastSpindleSpeed = cmd.spindleSpeed;
+        }
+
+        else if (cmd.command == 2) {
+            cmd.spindleSpeed = lastSpindleSpeed;
+        }
+
+        if (cmd.position.x > -0.5f) {
+            lastX = cmd.position.x;
+        }
+
+        // Explicitni Z je jediny okamzik, kdy se da poznat, jestli se od ted
+        // rezze nebo prejizdi. Vyjezdy na zsafe/zchange tim rez ukonci.
+        if (cmd.z > -0.5f) {
+            cutting = std::fabs(cmd.z - gcodeCutZ) < 0.001f;
+        }
+
+        // Z ma smysl dosazovat jen do pohybu. M-prikazy ho ignoruji, ale at
+        // se v logu neobjevuje Z u prikazu, ktery s nim nema co delat.
+        if (cmd.command != 1 && cmd.command != 5) {
+            return;
+        }
+
+        if (!cutting || lastX < 0) {
+            return;
+        }
+
+        cmd.z = cutZForX(lastX);
+    }
+
+
+    // Cislo radku, na kterem dekoder stoji, a kolik jich soubor ma. Pocita se
+    // az na vyzadani - drzet to prubezne by znamenalo hlidat kazdy inkrement
+    // currentChar na peti mistech. Soubor ma radove desitky kB a prochazi se
+    // jednou za prikaz, takze to nic nestoji.
+    int currentLine() const {
+        if (gcodeText.empty()) {
+            return 0;
+        }
+
+        size_t upTo = std::min(currentChar, gcodeText.length());
+        return (int)std::count(gcodeText.begin(), gcodeText.begin() + upTo, '\n') + 1;
+    }
+
+
+    int totalLines() const {
+        if (gcodeText.empty()) {
+            return 0;
+        }
+
+        return (int)std::count(gcodeText.begin(), gcodeText.end(), '\n') + 1;
+    }
+
+
     basicCMD nextInstr() {
         bool firstCmd = true;
         basicCMD generatedCMD = basicCMD();
@@ -697,6 +980,22 @@ struct gcodeDecoder {
                 generatedCMD.command = 255;
                 std::cout << "[GCODE] End of G-code reached." << std::endl;
                 break;
+            }
+
+            // pcb2gcode pise komentare do kulatych zavorek a ty jsou plne
+            // pismen, ktera tenhle dekoder jinak cte jako prikazy a parametry:
+            //   "( Millimeters per minute feed rate. )" -> M bez cisla
+            //   "( RPM spindle speed. )"                -> M bez cisla
+            //   "( Mill infeed pass 1/1 )"              -> dokonce M1
+            //   "( Feedrate. )"                         -> F bez cisla
+            // To posledni je nejhorsi: loadNumber() vrati -1, createCMD z toho
+            // udela speed = -1/60 = -0.0167 mm/s a prepise tim spravnych
+            // 3.33 mm/s, ktere na tom radku opravdu byly. Cely blok vcetne
+            // zavorek se proto musi preskocit.
+            if (gcodeText[currentChar] == '(') {
+                size_t commentEnd = gcodeText.find(')', currentChar);
+                currentChar = (commentEnd == std::string::npos) ? gcodeText.length() : commentEnd + 1;
+                continue;
             }
 
             if (gcodeText[currentChar] == commandChars[0] || gcodeText[currentChar] == commandChars[1]) {
@@ -716,6 +1015,8 @@ struct gcodeDecoder {
 
             currentChar += 1;
         }
+
+        applyMachineState(generatedCMD);
         return generatedCMD;
     }
 };
@@ -816,8 +1117,15 @@ struct tcpCommUser {
 
 
     json readData() {
+        // Driv se tady jen vypsala hlaska a slo se dal, takze po odpojeni
+        // backendu se smycka tocila dokola: 20x za sekundu dva radky do logu
+        // a zadna sance na obnoveni spojeni. Na Pi to znamenalo ~10 MB do
+        // journalu za hodinu a nutnost restartovat i nanoComm pokazde, kdyz
+        // se restartoval backend. accept() blokuje, takze se ceka potichu
+        // a spojeni se obnovi samo.
         if (socketID < 0) {
-            std::cout << "[TCP] Cannot read command: backend is not connected on port " << port << "." << std::endl;
+            std::cout << "[TCP] Backend is gone on port " << port << ", waiting for it to connect again." << std::endl;
+            waitForBackend();
             return nullptr;
         }
 
@@ -946,6 +1254,11 @@ struct communicator {
     fs::path gcodePathRemebered;
     size_t rememberedChar = 0;
     nanoReport remeberedReport = nanoReport(1);
+
+    // Vyska, na kterou se stroj zvedne pri navratu z pauzy, nez se rozjede
+    // v XY. Musi byt nad povrchem desky - drz to shodne se zsafe
+    // v printer/millproject.
+    float resumeSafeZ = 10.0f;
     bool started = false;
 
     communicator(fs::path port) {
@@ -985,6 +1298,12 @@ struct communicator {
     bool doGcodeTask(gcodeDecoder &decoder) {
         nanoReport curReport = myUART.listenUART();
         int message = myEmergencyUser.readEmergency();
+
+        // Jedine misto, kde se vi, jak daleko jsme v souboru. Reporty z jogu
+        // sem nechodi, takze tam obe pole zustanou na -1 a frontend podle
+        // toho pozna, ze zadny job nebezi.
+        curReport.gcodeLine = decoder.currentLine();
+        curReport.gcodeLines = decoder.totalLines();
         myTCPUser.sendData(curReport);
 
         if (message == 4 || message == 5) {
@@ -992,6 +1311,13 @@ struct communicator {
             rememberedChar = 0;
             if (message == 4) {
                 myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
+
+                // Report tohohle homingu musi nekdo precist jeste tady. Bez
+                // toho by zustal ve fronte a gcodeSender by ho pri continue
+                // dostal misto odpovedi na svuj ping - videl by error 7
+                // s maskou koncaku, vyhodnotil by to jako "Arduino did not
+                // ping back" a continue by skoncil driv, nez zacne.
+                myTCPUser.sendData(myUART.listenUART());
                 toContinue = true;
                 remeberedReport = curReport;
             }
@@ -1052,6 +1378,10 @@ struct communicator {
             return;
         }
 
+        // Ted uz je tohle opravdu odpoved na ping o radek vys, i pri continue -
+        // report nouzoveho homingu se precte uz v doGcodeTask. Driv tu bylo
+        // "&& !toContinue", coz pri kazdem continue poslalo rizeni do else
+        // vetve a ta bezpodminecne vraci.
         if (curReport.error == 4) {
             std::cout << "[GCODE] Arduino pinged back." << std::endl;
         }
@@ -1064,14 +1394,15 @@ struct communicator {
             std::cout << "[GCODE] Arduino did not ping back, error code: " << static_cast<int>(curReport.error) << "." << std::endl;
             return;
         }
-
+        started = false;
         if (homed) {
             myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
         }
 
-        if (!homed) {
+        else {
             myUART.sendBasicCMD(basicCMD(3));
             homed = true;
+            started = true;
         }
 
         std::stringstream buffer;
@@ -1079,13 +1410,29 @@ struct communicator {
         gcodeDecoder decoder = gcodeDecoder(buffer.str(), startChar);
 
         if (toContinue) {
+            std::cout << "[GCODE] Continuing G-code task from remembered position: X " << remeberedReport.position.x
+                      << ", Y " << remeberedReport.position.y << ", Z " << remeberedReport.z << "." << std::endl;
+
+            // Navrat musi byt na tri kroky, ne jedinym prikazem. cmd 5 dela
+            // moveZ a teprve pak move2D, takze jednim prikazem by stroj nejdriv
+            // sjel do rezne hloubky tam, kde zrovna stoji, a v ni prejel nad
+            // zapamatovane misto - pres desku. Behem pauzy se navic smi jogovat,
+            // takze "kde zrovna stoji" muze byt kdekoliv.
+            //
+            // Kazde odeslani ma svoje cteni, aby fronta zustala na jednom
+            // nepreectenem reportu, stejne jako pri normalnim startu.
+            myUART.sendBasicCMD(basicCMD(5, {-1,-1}, resumeSafeZ, remeberedReport.speed, remeberedReport.spindlSpeed));
             myTCPUser.sendData(myUART.listenUART());
-            std::cout << "[GCODE] Continuing G-code task from remembered position." << std::endl;
-            myUART.sendBasicCMD(basicCMD(5, remeberedReport.position, remeberedReport.z, remeberedReport.speed, remeberedReport.spindlSpeed));
+
+            myUART.sendBasicCMD(basicCMD(5, remeberedReport.position, -1, remeberedReport.speed, -1));
+            myTCPUser.sendData(myUART.listenUART());
+
+            myUART.sendBasicCMD(basicCMD(5, {-1,-1}, remeberedReport.z, remeberedReport.speed, -1));
+            myTCPUser.sendData(myUART.listenUART());
+            started = true;
         }
 
         toContinue = false;
-        started = true;
 
         while (advance) {
             advance = doGcodeTask(decoder);
@@ -1201,7 +1548,24 @@ struct communicator {
 
 
 int main() {
-    communicator myCommunicator = communicator("/dev/ttyUSB0");
+    // Po kolika radcich se zaklada novy soubor. Env je hlavne kvuli testovani,
+    // psat 15000 radku jen kvuli overeni rotace nema smysl.
+    long logLimit = 15000;
+    const char *limitFromEnv = std::getenv("CNC_LOG_MAX_LINES");
+
+    if (limitFromEnv != nullptr && std::atol(limitFromEnv) > 0) {
+        logLimit = std::atol(limitFromEnv);
+    }
+
+    // Musi byt uplne prvni, jinak by se prvni radky setupu do logu nedostaly.
+    // static kvuli zivotnosti: cout na ten buffer ukazuje az do konce procesu.
+    static logTee tee(std::cout.rdbuf(), resolveLogDir(), "nanoCommLog", logLimit);
+    std::cout.rdbuf(&tee);
+    std::cerr.rdbuf(&tee);
+
+    std::cout << "[LOG] Console output is mirrored to " << tee.currentPath() << std::endl;
+
+    communicator myCommunicator = communicator("/dev/arduino0");
     myCommunicator.setup();
     while (true) {
         myCommunicator.operateCommunicator();

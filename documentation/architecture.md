@@ -118,7 +118,7 @@ FE   POST /newDBGcodeIns                    -> row in SQLite
 FE   print button   -> POST /printGcode
 BE   is printed > 0 and does the file exist?
        no  -> generateGcode(): spawn pcb2gcode with --config millproject
-              check board size against 75 x 95 mm
+              check board size against 54 x 76 mm
        yes -> reuse the existing file
      sendCMD({ cmd: 3, path: "../../gcodes/<name>.gcode" })
 CPP  gcodeSender()

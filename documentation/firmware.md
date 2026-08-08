@@ -56,11 +56,13 @@ endstop and the heartbeat with it.
 #define LEAD_T8 2              // leadscrew pitch, mm per revolution
 #define JUMPER 2               // driver microstepping (half step)
 #define PULLEY_TEETH 16        // GT2 pulley teeth
-#define MAX_X 75               // work area in mm
-#define MAX_Y 95
-#define MAX_Z 25
+#define MAX_X 60               // distance between the endstops, in mm
+#define MAX_Y 80
+#define MAX_Z 15
 #define MAX_SPEED 160          // mm/s
-#define MINIMAL_DISTANCE_STEP 25
+#define MINIMAL_DISTANCE_MM_X 3    // safe margin from each endstop
+#define MINIMAL_DISTANCE_MM_Y 2
+#define MINIMAL_DISTANCE_MM_Z 1
 #define MAX_ACC 150
 #define START_FREQ 100
 ```

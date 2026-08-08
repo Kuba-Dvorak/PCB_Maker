@@ -78,6 +78,14 @@ y-offset=2
 #
 # pcb2gcode na to vypise varovani "Engraving depth (--zwork) is
 # greater than zero!" - to je v poradku a je to ocekavane.
+#
+# !!! zwork UZ NENI SKUTECNA HLOUBKA REZU !!!
+# Stul neni vodorovny, smerem k max X klesa. nanoComm proto kazdy rezny
+# pohyb prepocitava podle X - viz poznamka 8 na konci souboru. zwork=1.1
+# tady slouzi uz jen jako ZNACKA, podle ktere dekoder pozna, ze dany
+# pohyb je rezny a ne prejezd. Skutecna Z vyjde mezi 1.05 a 1.20.
+# Kdyz tohle cislo zmenis, MUSIS zmenit i gcodeCutZ v nanoComm/main.cpp,
+# jinak dekoder rezne pohyby prestane poznavat a nedosadi zadnou korekci.
 zsafe=10.0
 zwork=1.1
 zchange=12.0
@@ -173,24 +181,31 @@ tsp-2opt=true
 #    G00 a G01. Pole I a J v instructionChars zustanou nevyuzita.
 #
 # 5) VELIKOST DESKY  [VYRESENO]
-#    Stroj ma MAX_X 60 x MAX_Y 95 mm, ale to je vzdalenost mezi
+#    Stroj ma MAX_X 60 x MAX_Y 80 mm, ale to je vzdalenost mezi
 #    koncaky, ne pouzitelna plocha. Odsazeni se odecita na OBOU
 #    stranach - zacatek je na offsetu a konec musi zustat stejny
 #    kus pred protejsim dorazem:
 #
 #      X:  60 - 2*3 = 54 mm
-#      Y:  95 - 2*2 = 91 mm
+#      Y:  80 - 2*2 = 76 mm
 #
 #    pcb2gcode pri exportu vypise rozmery ("Height: ... Width: ..."),
 #    backend je cte v checkBoardFits() a vetsi desku zastavi jeste
 #    pred odeslanim do Nana.
 #
-# 6) OTACKY VRETENA JSOU V CELE ULOZE JEDNO CISLO
+# 6) OTACKY VRETENA JSOU V CELE ULOZE JEDNO CISLO  [VYRESENO]
 #    mill-speed=20000 se objevi jednou v hlavicce jako "S20000"
 #    a uz se nemeni. V Nanu to vyjde na stridu presne 255, takze
 #    controlSpindl() udela digitalWrite(HIGH) a PWM pri frezovani
 #    vubec nebezi. Snizeni mill-speed treba na 19000 da stridu 242
 #    a PWM se zapne i s pripadnym pistenim.
+#
+#    Pozor na navaznost: pcb2gcode vlozi za hlavicku blok vymeny
+#    nastroje "T0 / M5 / M0 / M3", kde M5 vreteno vypne a M3 uz prijde
+#    BEZ S. Dekoder proto posledni videne S drzi v lastSpindleSpeed
+#    a na M3 ho dosadi zpatky - jinak by vreteno po prvnich par set
+#    milisekundach zhaslo a cely job by se frezoval nastojato.
+#    Ten blok z pcb2gcode vypnout nejde, nom6 potlaci jen M6.
 #
 # 7) PREJEZDY V REZNE HLOUBCE  [NEVYRESENO, POZOR PRI OSTREM BEHU]
 #    pcb2gcode obcas spoji dve samostatne izolacni smycky primym
@@ -210,3 +225,28 @@ tsp-2opt=true
 #    behem je potreba bud najit spravny prepinac v pcb2gcode, nebo
 #    si ty prejezdy odchytit v backendu a rozdelit je na
 #    zvednuti / rychloposuv / zajezd.
+#
+# 8) KOMPENZACE NAKLONU STOLU  [VYRESENO, ale NE tady]
+#    Stul neni vodorovny: k max X klesa. Zmereno, ze hrot musi byt
+#    v rezu na Z 1.20 na X 3 a na Z 1.05 na X 57.
+#
+#    pcb2gcode to udelat neumi. Autoleveller (--al-front) sice existuje,
+#    ale generuje O-word subrutiny, promenne #, neprime odkazy ## a
+#    sondovani G38.2 - tedy program pro interpret, ne G-kod pro stroj.
+#    Dekoder v nanoComm vraci na vsechno, co nezacina G nebo M, kod 254,
+#    takze by se preskocilo 755 z 813 pohybu a nerezalo by se vubec.
+#    Navic sondu nemame a rovinu znames predem, takze mereni za behu
+#    nepotrebujeme.
+#
+#    Korekce proto sedi v gcodeDecoder v nanoComm/main.cpp:
+#      - tiltXMin / tiltXMax        souradnice STROJE, ne desky
+#      - tiltZAtXMin / tiltZAtXMax  zmerena hloubka na obou koncich
+#      - cutZForX()                 linearni interpolace + zaokrouhleni
+#                                   na cely krok osy Z
+#
+#    To zaokrouhleni je nutne. Sklon je 0.0028 mm Z na 1 mm X, takze na
+#    beznem segmentu (median 0.23 mm) vyjde zmena Z na desetinu kroku
+#    a firmware ji orizne na nulu. Zmereno na ten.GBL: bez zaokrouhleni
+#    chyba hloubky 0.040 mm (40 % rezu), se zaokrouhlenim prakticky nula.
+#    Patri k tomu i "+ 0.5f" v moveZ() v nanoCode/src/main.cpp - jedno
+#    bez druheho nefunguje.

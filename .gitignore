@@ -1,0 +1,11 @@
+# Logy z nanoCommu a backendu. Rotuji po 15000 radcich a promazava je
+# webUI/cleanLogs.sh - do repozitare nepatri.
+webUI/logs/
+
+# Vystupy prekladu
+webUI/nanoComm/build/
+webUI/nanoComm/cmake-build-debug/
+nanoCode/.pio/
+
+# Zavislosti
+webUI/backend/node_modules/

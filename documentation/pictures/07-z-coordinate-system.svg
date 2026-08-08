@@ -20,60 +20,65 @@
 
   <rect width="900" height="640" fill="#ffffff"/>
   <text class="title" x="36" y="40">The Z axis is shifted upwards on purpose</text>
-  <text class="subtitle" x="36" y="61">The firmware clamps Z to 0…25 mm, so the copper surface is not Z 0 — it is Z 2.0.</text>
+  <text class="subtitle" x="36" y="61">The firmware clamps Z to 1…15 mm, so the copper surface is not Z 0 — it is Z 1.2, measured.</text>
 
-  <!-- ruler -->
+  <!-- ruler: Z 0 at y=548, Z 15 at y=150, so 26.53 px per mm -->
   <line class="ruler" x1="140" y1="150" x2="140" y2="548"/>
   <text class="mono" x="132" y="146" text-anchor="end">Z</text>
 
   <!-- levels -->
-  <line class="lvl" x1="140" y1="176" x2="600" y2="176" stroke="#8b5cf6"/>
-  <text class="monob" x="130" y="180" text-anchor="end" fill="#6d28d9">10.00</text>
-  <text class="txt" x="610" y="174">zchange — tool change height</text>
+  <line class="lvl" x1="140" y1="230" x2="600" y2="230" stroke="#8b5cf6"/>
+  <text class="monob" x="130" y="234" text-anchor="end" fill="#6d28d9">12.00</text>
+  <text class="txt" x="610" y="228">zchange — tool change height</text>
 
-  <line class="lvl" x1="140" y1="395" x2="600" y2="395" stroke="#3b82f6"/>
-  <text class="monob" x="130" y="399" text-anchor="end" fill="#1d4ed8">4.00</text>
-  <text class="txt" x="610" y="393">zsafe — rapid moves happen here</text>
+  <line class="lvl" x1="140" y1="283" x2="600" y2="283" stroke="#3b82f6"/>
+  <text class="monob" x="130" y="287" text-anchor="end" fill="#1d4ed8">10.00</text>
+  <text class="txt" x="610" y="281">zsafe — rapid moves happen here</text>
 
-  <line class="lvl" x1="140" y1="467" x2="600" y2="467" stroke="#b45309"/>
-  <text class="monob" x="130" y="471" text-anchor="end" fill="#b45309">2.00</text>
-  <text class="txt" x="610" y="458">copper surface — the reference plane,</text>
-  <text class="txt" x="610" y="474">never written into the G-code itself</text>
+  <line class="lvl" x1="140" y1="516" x2="600" y2="516" stroke="#b45309"/>
+  <text class="monob" x="130" y="512" text-anchor="end" fill="#b45309">1.20</text>
+  <text class="txt" x="610" y="502">copper surface — the reference plane,</text>
+  <text class="txt" x="610" y="518">never written into the G-code itself</text>
 
-  <line class="lvl" x1="140" y1="474" x2="600" y2="474" stroke="#dc2626"/>
-  <text class="monob" x="130" y="492" text-anchor="end" fill="#b91c1c">1.95</text>
-  <text class="txt" x="610" y="496">zwork — 0.05 mm below the surface</text>
+  <line class="lvl" x1="140" y1="522" x2="600" y2="522" stroke="#dc2626"/>
+  <text class="monob" x="130" y="538" text-anchor="end" fill="#b91c1c">1.20…1.05</text>
+  <text class="txt" x="610" y="540">the depth that is really cut, tilted with X</text>
 
-  <text class="monob" x="130" y="552" text-anchor="end" fill="#374151">0.00</text>
+  <text class="monob" x="130" y="562" text-anchor="end" fill="#374151">0.00</text>
+  <text class="txt" x="152" y="562">Zmin endstop — 1.2 mm below the copper</text>
 
   <!-- board -->
-  <rect x="180" y="474" width="420" height="66" fill="#166534" opacity="0.18"/>
-  <rect x="180" y="467" width="420" height="8" fill="#b87333"/>
-  <text class="txt" x="192" y="516">FR4 substrate</text>
-  <text class="txt" x="392" y="516">copper — thickness exaggerated</text>
+  <rect x="180" y="522" width="420" height="26" fill="#166534" opacity="0.18"/>
+  <rect x="180" y="516" width="420" height="7" fill="#b87333"/>
+  <text class="txt" x="192" y="540">FR4</text>
+  <text class="txt" x="392" y="540">copper — thickness exaggerated</text>
 
-  <!-- tool -->
-  <rect x="352" y="300" width="18" height="80" rx="3" fill="#6b7280"/>
-  <path d="M352,380 L370,380 L364,395 L358,395 Z" fill="#374151"/>
-  <text class="txt" x="382" y="330">tool parked at zsafe</text>
+  <!-- tool parked at zsafe -->
+  <rect x="352" y="188" width="18" height="80" rx="3" fill="#6b7280"/>
+  <path d="M352,268 L370,268 L364,283 L358,283 Z" fill="#374151"/>
+  <text class="txt" x="382" y="230">tool parked at zsafe</text>
 
   <!-- clamp range -->
   <line class="ruler" x1="92" y1="150" x2="92" y2="548" marker-start="url(#zb)" marker-end="url(#z)"/>
-  <text class="txt" x="70" y="360" text-anchor="middle" transform="rotate(-90 70 360)">firmware clamp 0 … 25 mm</text>
+  <text class="txt" x="70" y="360" text-anchor="middle" transform="rotate(-90 70 360)">firmware clamp 1 … 15 mm</text>
 
   <!-- explanation -->
-  <rect x="610" y="120" width="256" height="150" rx="10" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
-  <text class="h" x="628" y="145" fill="#b91c1c">Why not just use negative Z?</text>
-  <text class="txt" x="628" y="168" fill="#7f1d1d">pcb2gcode normally cuts below</text>
-  <text class="txt" x="628" y="186" fill="#7f1d1d">zero (zwork = -0.05). But the</text>
-  <text class="txt" x="628" y="204" fill="#7f1d1d">firmware clamps anything negative</text>
-  <text class="txt" x="628" y="222" fill="#7f1d1d">to 0 and raises error 6, so every</text>
-  <text class="txt" x="628" y="240" fill="#7f1d1d">cut would ride across the surface</text>
-  <text class="txt" x="628" y="258" fill="#7f1d1d">and mill precisely nothing.</text>
+  <rect x="610" y="112" width="256" height="150" rx="10" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <text class="h" x="628" y="137" fill="#b91c1c">Why not just use negative Z?</text>
+  <text class="txt" x="628" y="160" fill="#7f1d1d">pcb2gcode normally cuts below</text>
+  <text class="txt" x="628" y="178" fill="#7f1d1d">zero (zwork = -0.05). But the</text>
+  <text class="txt" x="628" y="196" fill="#7f1d1d">firmware clamps anything under</text>
+  <text class="txt" x="628" y="214" fill="#7f1d1d">1.0 back to 1.0 and raises error 6,</text>
+  <text class="txt" x="628" y="232" fill="#7f1d1d">so every cut would ride across the</text>
+  <text class="txt" x="628" y="250" fill="#7f1d1d">surface and mill precisely nothing.</text>
 
-  <rect x="610" y="530" width="256" height="94" rx="10" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5"/>
-  <text class="h" x="628" y="554" fill="#b45309">Cutting deeper means going down</text>
-  <text class="txt" x="628" y="576" fill="#78350f">1.95 → 1.90 is 0.10 mm deep.</text>
-  <text class="txt" x="628" y="596" fill="#78350f">pcb2gcode warns "engraving depth</text>
-  <text class="txt" x="628" y="614" fill="#78350f">is greater than zero" — expected.</text>
+  <rect x="610" y="562" width="256" height="62" rx="10" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5"/>
+  <text class="h" x="628" y="584" fill="#b45309">Cutting deeper means going down</text>
+  <text class="txt" x="628" y="604" fill="#78350f">1.10 → 1.05 is 0.15 mm deep. pcb2gcode</text>
+  <text class="txt" x="628" y="618" fill="#78350f">warns about it — that is expected.</text>
+
+  <!-- tilt note -->
+  <rect x="36" y="590" width="540" height="38" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text class="txt" x="54" y="606" fill="#1e3a8a">The bed is not level, it drops towards max X. zwork=1.10 in the millproject is only a MARKER</text>
+  <text class="txt" x="54" y="621" fill="#1e3a8a">— nanoComm replaces it per move with cutZForX(): 1.20 at X 3, 1.05 at X 57, snapped to whole Z steps.</text>
 </svg>

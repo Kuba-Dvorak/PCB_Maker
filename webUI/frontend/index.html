@@ -24,13 +24,19 @@
         </header>
 
         <section class="dashboard-grid" aria-label="CNC dashboard">
-            <section class="panel motion-panel" aria-labelledby="motion-title">
+            <section class="panel motion-panel" id="motionPanel" aria-labelledby="motion-title">
                 <div class="panel-heading">
                     <div>
                         <p class="eyebrow">Manual control</p>
                         <h2 id="motion-title">Movement</h2>
                     </div>
                     <span class="panel-badge">Jog</span>
+                </div>
+
+                <div id="jogLock" class="jog-lock" role="status" hidden>
+                    <span class="jog-lock-icon" aria-hidden="true">▶</span>
+                    <strong>Job is running</strong>
+                    <small>Manual movement is locked until the job ends or you press STOP</small>
                 </div>
 
                 <div class="jog-control" aria-label="Axis movement controls">
@@ -109,6 +115,25 @@
                     <span class="endstop-chip endstop-unknown" id="esZmax"><i aria-hidden="true"></i>Z max</span>
                 </div>
                 <p id="endstopSummary" class="operation-result" role="status">Waiting for the first report</p>
+            </section>
+
+            <section class="panel job-panel" aria-labelledby="job-title">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Job progress</p>
+                        <h2 id="job-title">Current job</h2>
+                    </div>
+                    <span id="jobBadge" class="panel-badge job-badge job-idle">Idle</span>
+                </div>
+
+                <div class="job-meter" role="progressbar" id="jobMeter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div id="jobBar" class="job-bar"></div>
+                </div>
+
+                <div class="job-figures">
+                    <p id="jobName" class="job-name">No job is running</p>
+                    <p id="jobLine" class="job-line">Line —</p>
+                </div>
             </section>
 
             <section class="panel emergency-panel" aria-labelledby="emergency-title">

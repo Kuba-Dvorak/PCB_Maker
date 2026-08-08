@@ -10,7 +10,115 @@ const net = require('net');
 const readline = require('readline');
 const sqlite3 = require("sqlite3").verbose();
 const { spawn } = require("child_process");
-const db = new sqlite3.Database("../database/gcodes.db");
+const os = require("os");
+const util = require("util");
+
+// Vsechny cesty se odvozuji od umisteni tohohle souboru, ne od pracovniho
+// adresare. Pri rucnim spusteni z webUI/backend to vyjde stejne jako driv,
+// ale pod systemd na RPi je cwd typicky "/", takze relativni "../gerbers"
+// by ukazovalo mimo projekt a upload i pcb2gcode by spadly.
+const webUIDir = path.join(__dirname, "..")
+
+// Logy. Stejna slozka i stejny format jako u nanoCommu, at se daji cist
+// vedle sebe - jeden job je vzdycky videt v obou. Musi to byt uplne nahore,
+// jeste pred connectSockets(), jinak by prvni vypisy do souboru nedosly.
+const logDir = process.env.CNC_LOG_DIR || path.join(webUIDir, "logs")
+// Env je hlavne kvuli testovani, psat 15000 radku jen kvuli overeni rotace
+// nema smysl.
+const logLineLimit = Number(process.env.CNC_LOG_MAX_LINES) > 0
+    ? Number(process.env.CNC_LOG_MAX_LINES)
+    : 15000
+
+let logStream = null
+let logLines = 0
+
+
+function twoDigits(value) {
+    return String(value).padStart(2, "0")
+}
+
+
+function logTimeStamp() {
+    const now = new Date()
+    return `${twoDigits(now.getHours())}:${twoDigits(now.getMinutes())}:${twoDigits(now.getSeconds())}`
+}
+
+
+function openLogFile() {
+    if (logStream) {
+        logStream.end(`--- limit ${logLineLimit} lines reached, continuing in a new file ---\n`)
+    }
+
+    const now = new Date()
+    const stamp = `${now.getFullYear()}-${twoDigits(now.getMonth() + 1)}-${twoDigits(now.getDate())}`
+        + `_${twoDigits(now.getHours())}-${twoDigits(now.getMinutes())}-${twoDigits(now.getSeconds())}`
+
+    let target = path.join(logDir, `backendLog-${stamp}.txt`)
+
+    // Dve rotace ve stejne sekunde jsou nepravdepodobne, ale prepsat
+    // predchozi log by bylo horsi nez oskliva pripona.
+    for (let attempt = 2; fs.existsSync(target) && attempt < 1000; attempt++) {
+        target = path.join(logDir, `backendLog-${stamp}-${attempt}.txt`)
+    }
+
+    logStream = fs.createWriteStream(target, { flags: "a" })
+    logLines = 0
+
+    // Nesmi to logovat pres console, to by se zacyklilo.
+    logStream.on("error", (err) => {
+        logStream = null
+        process.stderr.write(`[JS] File logging stopped: ${err.message}\n`)
+    })
+
+    return target
+}
+
+
+// Prepise console.* tak, aby psaly i do souboru. Menit se tim padem nemusi
+// ani jeden z existujicich vypisu.
+function startFileLogging() {
+    fs.mkdirSync(logDir, { recursive: true })
+    const activePath = openLogFile()
+
+    for (const level of ["log", "info", "warn", "error"]) {
+        const original = console[level].bind(console)
+
+        console[level] = (...args) => {
+            original(...args)
+            writeLogLine(level, args)
+        }
+    }
+
+    console.log(`[JS] Console output is mirrored to ${activePath}`)
+}
+
+
+function writeLogLine(level, args) {
+    if (!logStream) {
+        return
+    }
+
+    const text = args
+        .map(part => typeof part === "string" ? part : util.inspect(part, { depth: 3 }))
+        .join(" ")
+
+    const tag = level === "log" || level === "info" ? "" : `${level.toUpperCase()} `
+
+    for (const line of text.split("\n")) {
+        logStream.write(`[${logTimeStamp()}] ${tag}${line}\n`)
+        logLines++
+    }
+
+    if (logLines >= logLineLimit) {
+        openLogFile()
+    }
+}
+
+
+startFileLogging()
+
+
+const db = new sqlite3.Database(path.join(webUIDir, "database", "gcodes.db"));
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -19,36 +127,64 @@ function sleep(ms) {
 
 app.use(cors())
 app.use(express.json());
+
+// Frontend jede ze stejneho portu jako API, takze prohlizec dostane stranku
+// i data ze stejneho originu. Diky tomu staci ve fetch relativni cesty
+// ("/home" misto "http://localhost:3300/home") a nikde v kodu nemusi byt
+// natvrdo IP Raspberry Pi. Static jde pred routy zamerne - nazvy souboru
+// (index.html, index.css, index.js) se s nazvy endpointu nekryji.
+app.use(express.static(path.join(webUIDir, "frontend")))
 let mainTransmisionSocket;
 let emergencyTransition;
 
+// Node od verze 18 zkousi u localhost soucasne ::1 i 127.0.0.1 a kdyz selzou
+// obe, vrati AggregateError, ktery ma err.message PRAZDNY. Log by pak vypsal
+// jen "socket error:" a nic dal, coz je presne ta situace, kdy clovek u RPi
+// potrebuje vedet nejvic. Tohle z nej vytahne kod chyby a rovnou napovi, ze
+// nejcastejsi pricina je nespusteny nanoComm.
+function describeSocketError(err) {
+    const code = err.code || (err.errors && err.errors[0] && err.errors[0].code) || "unknown"
+    const text = err.message || `${err.name || "Error"} (${code})`
+
+    if (code === "ECONNREFUSED") {
+        return `${text} - nothing is listening, the nanoComm daemon is probably not running`
+    }
+
+    return text
+}
+
+
 async function connectSockets() {
-     emergencyTransition = net.createConnection({ port: 5001 }, () => {
+    // Host je tu schvalne. Bez nej Node vezme "localhost", ktery se od verze
+    // 18 resolvuje na ::1 i 127.0.0.1 a Node otevre OBE spojeni soucasne -
+    // to pomalejsi pak zavre. nanoComm posloucha jen na IPv4, takze prvni
+    // accept chytil to zahazovane spojeni, hned videl EOF a prisel o kanal.
+     emergencyTransition = net.createConnection({ host: "127.0.0.1", port: 5001 }, () => {
         console.log('[JS] Connected to main port 5001');
     });
 
     emergencyTransition.on('close', () => console.log('[JS] Emergency connection ended.'));
 
     emergencyTransition.on('error', (err) => {
-        console.log("[JS] Emergency socket error:", err.message);
+        console.log("[JS] Emergency socket error on port 5001:", describeSocketError(err));
     });
 
     await sleep(500);
 
-    mainTransmisionSocket = net.createConnection({ port: 5000 }, () => {
+    mainTransmisionSocket = net.createConnection({ host: "127.0.0.1", port: 5000 }, () => {
         console.log('[JS] Connected to main port 5000');
     });
 
     mainTransmisionSocket.on('close', () => console.log('[JS] Main connection ended.'));
 
     mainTransmisionSocket.on('error', (err) => {
-        console.log("[JS] Main socket error:", err.message);
+        console.log("[JS] Main socket error on port 5000:", describeSocketError(err));
     });
 
     mainReader = readline.createInterface({input: mainTransmisionSocket})
     mainReader.on('line', handleNanoLine)
     mainReader.on('error', (err) => {
-        console.log("[JS] Main reader error:", err.message);
+        console.log("[JS] Main reader error:", describeSocketError(err));
     });
 }
 
@@ -79,18 +215,19 @@ function isGerberName(fileName) {
 
 // Gerbery maji vlastni slozku. C++ demon prohledava jen gcodes/, takze
 // se mu sem nesmi dostat nic, co by zkusil poslat do Nana jako G-kod.
-const gerberDir = "../gerbers"
+const gerberDir = path.join(webUIDir, "gerbers")
 fs.mkdirSync(gerberDir, { recursive: true })
 
 // Vygenerovany G-kod a konfigurace stroje pro pcb2gcode.
-const gcodeDir = "../gcodes"
-const millprojectPath = "../printer/millproject"
+const gcodeDir = path.join(webUIDir, "gcodes")
+const millprojectPath = path.join(webUIDir, "printer", "millproject")
 fs.mkdirSync(gcodeDir, { recursive: true })
+
 
 // Vzdalenost mezi koncaky. Musi sedet s MAX_X / MAX_Y / MAX_Z
 // v nanoCode/src/main.cpp.
 const machineMaxX = 60
-const machineMaxY = 95
+const machineMaxY = 80
 const machineMaxZ = 15
 
 // Odsazeni od dorazu, musi sedet s MINIMAL_DISTANCE_MM_X / _Y v nanoCode
@@ -135,11 +272,69 @@ let currentReport = {
     z: -1,
     speed: -1,
     spindlSpeed: -1,
-    endstops: -1
+    endstops: -1,
+    // Postup v souboru. -1 = job nebezi, plni to nanoComm v doGcodeTask.
+    gcodeLine: -1,
+    gcodeLines: -1,
+    // Odvozene tady, ne v Nanu: ten o zadnem "jobu" nevi.
+    jobRunning: false,
+    jobPaused: false,
+    jobName: ""
 }
 
 let printUnderGoing = false
+let jobPaused = false
 let currentGcodeName = ""
+
+
+// Pauza je zamerne oddelena od "job bezi". Job zustava rozdelany a continue
+// se k nemu vrati, ale stroj mezitim stoji, takze se smi jogovat - treba na
+// vymenu hrotu. Pozice pro navrat si drzi nanoComm ve svem remeberedReport,
+// takze ji rucni pojezd nerozbije.
+function setJobPaused(paused) {
+    if (jobPaused === paused) {
+        return
+    }
+
+    jobPaused = paused
+    currentReport.jobPaused = jobPaused
+
+    if (paused) {
+        console.log("[JS] Job paused, jogging is unlocked")
+    }
+
+    // Pri konci jobu se pauza taky rusi, ale tam uz se nic nezamyka a hlasku
+    // o konci vypise setJobRunning. Bez tehle podminky by log tvrdil
+    // "locked again" presne ve chvili, kdy se jog naopak odemyka.
+    else if (printUnderGoing) {
+        console.log("[JS] Job resumed, jogging is locked again")
+    }
+}
+
+
+// Jedno misto, kde se meni stav jobu, aby se to nerozjelo mezi endpointy.
+// Nano nema pojem "job", takze to musi drzet backend: zapina se odeslanim
+// tisku, vypina koncem programu (error 8) nebo tvrdym stopem z frontendu.
+function setJobRunning(running, name = "") {
+    if (printUnderGoing === running && currentGcodeName === name) {
+        return
+    }
+
+    printUnderGoing = running
+    currentGcodeName = running ? name : ""
+    currentReport.jobRunning = printUnderGoing
+    currentReport.jobName = currentGcodeName
+
+    if (!running) {
+        setJobPaused(false)
+        currentReport.gcodeLine = -1
+        currentReport.gcodeLines = -1
+    }
+
+    console.log(running
+        ? `[JS] Job started: ${currentGcodeName}`
+        : "[JS] Job is no longer running, jogging is unlocked")
+}
 
 
 function handleNanoLine(line) {
@@ -158,6 +353,18 @@ function handleNanoLine(line) {
             currentReport.spindlSpeed = message.spindlSpeed
             // -1 znamena "nevim". Radsi nic, nez ukazovat na FE stary stav koncaku jako aktualni.
             currentReport.endstops = message.endstops ?? -1
+
+            // Reporty z jogu maji obe pole -1, prepsat by se tim smazal
+            // posledni znamy postup jobu. Bere se jen to, co ma smysl.
+            if (Number.isInteger(message.gcodeLine) && message.gcodeLine >= 0) {
+                currentReport.gcodeLine = message.gcodeLine
+                currentReport.gcodeLines = message.gcodeLines ?? -1
+            }
+
+            // Error 8 posila Nano na M2, tedy na konci programu.
+            if (message.error === 8) {
+                setJobRunning(false)
+            }
 
         } catch {
             console.log('[JS] Sent message from C++ is not a JSON')
@@ -442,8 +649,13 @@ app.post("/newDBGcodeIns", async (req, res) => {
 })
 
 
-// DULEZITE print je ted nakonfigurovany na to ze C++ je kompilovane v cmaku, ktery udela pod slozku v slozce nanoComm
-//PROTO je ../../gcodes a ne ../gcodes, pokud doslo k zmene, nebo se nekompiluje z podslozky, tak zmenit!!!
+// Cesta ke G-kodu se nanoCommu posila ABSOLUTNE. Driv to byla relativni
+// "../../gcodes/...", ktera se rozbalovala proti pracovnimu adresari nanoCommu,
+// ne proti umisteni souboru - fungovala jen pri spusteni z podslozky, kterou
+// udela cmake. Rozbila se pokazde, kdyz se demon pustil odjinud: ze scriptu,
+// z jineho build adresare, nebo pod systemd, ktery dava services cwd "/".
+// gcodePath je uz spocitany vys pres path.join(gcodeDir, ...), takze staci
+// poslat jeho.
 function readPrintedFlag(name) {
     return new Promise((resolve) => {
         // db.get, ne db.all - ceka se jeden radek, ne pole
@@ -465,6 +677,16 @@ app.post("/printGcode", async (req, res) => {
         console.log("[JS] Frontend made wrong gcode print request")
         return res.json({
             answer: "Wrong gcode print request json"
+        })
+    }
+
+    // Zamek jogovani je jen ve frontendu, tenhle endpoint se da zavolat
+    // i primo. Druhy job poslany doprostred prvniho by nanoComm rozjel
+    // soubezne s bezicim gcodeSender - to zastavit tady.
+    if (printUnderGoing) {
+        console.warn(`[JS] Print request refused, "${currentGcodeName}" is still running`)
+        return res.status(409).json({
+            answer: `Job "${currentGcodeName}" is still running. Stop it before starting another one.`
         })
     }
 
@@ -510,8 +732,10 @@ app.post("/printGcode", async (req, res) => {
     // a Nano dostalo cestu k souboru, ktery jeste nevznikl.
     sendCMD({
         cmd: 3,
-        path: `../../gcodes/${name}.gcode`
+        path: gcodePath
     })
+
+    setJobRunning(true, name)
 
     res.json({
         answer: "Print comming ahead"
@@ -635,6 +859,7 @@ app.post("/home", async (req, res) => {
 app.post("/emergency", async (req, res) => {
     if (req.body.cmd === "Pause") {
         sendEmergency(4)
+        setJobPaused(true)
         res.json({
             answer: "Pause sent"
         })
@@ -642,6 +867,9 @@ app.post("/emergency", async (req, res) => {
 
     else if (req.body.cmd === "Stop") {
         sendEmergency(5)
+        // Tvrdy stop job zahazuje, continue uz ho nevzkrisi - odemknout jog.
+        // Pause naopak nechava job bezet, tam se stav nemeni.
+        setJobRunning(false)
         res.json({
             answer: "Stop sent"
         })
@@ -649,6 +877,7 @@ app.post("/emergency", async (req, res) => {
     
     else if (req.body.cmd === "Continue") {
         sendEmergency(6)
+        setJobPaused(false)
         res.json({
             answer: "Continue sent"
         })
@@ -665,6 +894,43 @@ app.post("/emergency", async (req, res) => {
 
 
 
-app.listen(3300, () => {
-  console.log("Backend bezi na http://localhost:3300");
+// 3300 se nekryje s nicim z MainsailOS na stejnem RPi: nginx drzi 80 (a 81
+// pro kameru), Moonraker 7125. Kdyby se to nekdy trefilo, meni se to tady.
+const httpPort = 3300
+
+// "0.0.0.0" znamena vsechna sitova rozhrani, ne jen loopback. Bez toho by
+// backend odpovidal jen na samotnem RPi a z notebooku v siti by byl mrtvy.
+const httpHost = "0.0.0.0"
+
+
+// Vypise adresy, na kterych stranka opravdu je. Pri deploymentu je to jedina
+// informace, kterou clovek u RPi potrebuje - a usetri to hledani IP jinde.
+function localAddresses() {
+    const found = []
+
+    for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
+        for (const address of addresses || []) {
+            if (address.family === "IPv4" && !address.internal) {
+                found.push(`${address.address} (${name})`)
+            }
+        }
+    }
+
+    return found
+}
+
+
+app.listen(httpPort, httpHost, () => {
+    console.log(`[JS] Backend and frontend are listening on ${httpHost}:${httpPort}`)
+    console.log(`[JS] On the Pi itself: http://localhost:${httpPort}`)
+
+    const addresses = localAddresses()
+
+    if (addresses.length === 0) {
+        console.warn("[JS] No external IPv4 address found, the machine may be offline. Only localhost will work.")
+    }
+
+    for (const address of addresses) {
+        console.log(`[JS] From the local network: http://${address.split(" ")[0]}:${httpPort}`)
+    }
 });

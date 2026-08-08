@@ -22,6 +22,25 @@ const stepSpindleValue = document.getElementById("stepSpindleValue")
 
 const zSpeedHint = document.getElementById("zSpeedHint")
 
+const jogLock = document.getElementById("jogLock")
+const jobBadge = document.getElementById("jobBadge")
+const jobMeter = document.getElementById("jobMeter")
+const jobBar = document.getElementById("jobBar")
+const jobNameText = document.getElementById("jobName")
+const jobLineText = document.getElementById("jobLine")
+
+// Vsechno, cim jde strojem hnout rucne. Behem jobu se to zamyka, aby se
+// doprostred frezovani nedala poslat druha sada souradnic. Prekryv sam
+// o sobe nestaci - klavesnici by se na tlacitka poradu dalo dostat.
+const jogControls = [
+    XForward, XBackwards, YForward, YBackwards, ZForward, ZBackwards,
+    homeMinBut, homeMaxBut,
+    stepSizeSlider, stepSpeedSlider, stepSpindleSlider
+]
+
+// null, ne false: prvni report ma stav vzdycky nastavit, i kdyz job nebezi.
+let jogLocked = null
+
 // Osa Z jede pres trapezovou tyc T8, tedy 200 kroku/mm proti 12.5 kroku/mm
 // u GT2 remene na X a Y. Stejna rychlost v mm/s tam znamena 16x vyssi
 // frekvenci kroku a nad timhle stropem uz motor kroky ztraci.
@@ -132,7 +151,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
 async function sendEmergencyCMD(name) {
     try {
-        const response = await fetch("http://localhost:3300/emergency", {
+        const response = await fetch("/emergency", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -173,7 +192,7 @@ function homeButton(direction) {
     return async function (event) {
         event.preventDefault()
         try {
-            const response = await fetch("http://localhost:3300/home", {
+            const response = await fetch("/home", {
                 method: "POST",
                 headers: {
                     "Content-Type" : "application/json"
@@ -210,7 +229,7 @@ async function rmButFunq (event) {
         let curName = event.target.id
         const gcodeName = curName.replace("-remove", "")
         operateGcodeList(gcodeName, 0, 0, "remove")
-        const response = await fetch("http://localhost:3300/deleteGcode", {
+        const response = await fetch("/deleteGcode", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -230,7 +249,7 @@ async function printButFunq (event) {
         const gcodeName = curName.replace("-print", "")
         const responsePlace = document.getElementById(`${gcodeName}-response`)
 
-        const response = await fetch("http://localhost:3300/printGcode", {
+        const response = await fetch("/printGcode", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -314,7 +333,7 @@ function operateGcodeList(name, date, size, opperation) {
 
 async function sendOperate(axis, size, speed, spindleSpeed) {
     try {
-        const response = await fetch("http://localhost:3300/operate", {
+        const response = await fetch("/operate", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -409,7 +428,7 @@ gerberUpload.addEventListener("click", async function (event) {
     fileForm.append("gerber", chosenFile)
 
     try {
-        const response = await fetch("http://localhost:3300/uploadGerber", {
+        const response = await fetch("/uploadGerber", {
             method: "POST",
             body: fileForm
         })
@@ -426,7 +445,7 @@ gerberUpload.addEventListener("click", async function (event) {
 
         operateGcodeList(nameGerber, Date.now(), chosenFile.size, "add")
 
-        const response2 = await fetch("http://localhost:3300/newDBGcodeIns", {
+        const response2 = await fetch("/newDBGcodeIns", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -449,7 +468,7 @@ gerberUpload.addEventListener("click", async function (event) {
 
 async function loadGcodesFromDB() {
     try {
-        const response = await fetch("http://localhost:3300/gcodeListUpload");
+        const response = await fetch("/gcodeListUpload");
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
@@ -533,10 +552,76 @@ function renderEndstops(mask) {
 }
 
 
+function setJogLocked(locked) {
+    if (jogLocked === locked) {
+        return
+    }
+
+    jogLocked = locked
+    jogLock.hidden = !locked
+
+    for (const control of jogControls) {
+        if (control) {
+            control.disabled = locked
+        }
+    }
+
+    console.log(locked
+        ? "[FE] Job is running, jog controls locked"
+        : "[FE] No job is running, jog controls unlocked")
+}
+
+
+// jobRunning drzi backend, protoze Nano zadny pojem "job" nema. gcodeLine
+// a gcodeLines plni nanoComm z dekoderu a dokud neprijde prvni report
+// z jobu, jsou na -1.
+function renderJob(data) {
+    const running = data?.jobRunning === true
+    const paused = data?.jobPaused === true
+
+    // V pauze stroj stoji a pozice pro navrat je zapamatovana v nanoComm,
+    // takze rucni pojezd nicemu nevadi. Zamyka se jen skutecne bezici job.
+    setJogLocked(running && !paused)
+
+    const state = !running ? "Idle" : (paused ? "Paused" : "Running")
+    jobBadge.textContent = state
+    jobBadge.className = `panel-badge job-badge ${!running ? "job-idle" : (paused ? "job-paused" : "job-active")}`
+
+    if (!running) {
+        jobNameText.textContent = "No job is running"
+        jobLineText.textContent = "Line —"
+        jobBar.style.width = "0%"
+        jobMeter.setAttribute("aria-valuenow", "0")
+        return
+    }
+
+    jobNameText.textContent = paused
+        ? `${data.jobName || "Unnamed job"} — paused, jogging is allowed`
+        : (data.jobName || "Unnamed job")
+
+    const line = Number(data.gcodeLine)
+    const total = Number(data.gcodeLines)
+
+    // Mezi odeslanim tisku a prvnim reportem z dekoderu se nic nepocita.
+    if (!Number.isFinite(line) || line < 0 || !Number.isFinite(total) || total <= 0) {
+        jobLineText.textContent = "Line — (waiting for the first report)"
+        jobBar.style.width = "0%"
+        jobMeter.setAttribute("aria-valuenow", "0")
+        return
+    }
+
+    const percent = Math.min(100, Math.max(0, (line / total) * 100))
+    jobLineText.textContent = `Line ${line} of ${total} · ${percent.toFixed(0)} %`
+    jobBar.style.width = `${percent}%`
+    jobBar.className = paused ? "job-bar job-paused-bar" : "job-bar"
+    jobMeter.setAttribute("aria-valuenow", percent.toFixed(0))
+}
+
+
 async function loadNanoReport() {
     let data
     try {
-        const response = await fetch("http://localhost:3300/currentPrinterInfo", {
+        const response = await fetch("/currentPrinterInfo", {
             method: "POST",
             headers: {
                 "Content-Type" : "application/json"
@@ -548,9 +633,12 @@ async function loadNanoReport() {
         console.error("[FE] Telemetry could not be loaded:", err)
         printerStatus.textContent = "Status: backend is not responding"
         printerError.textContent = "Error: --"
-        printerErrorMessage.textContent = "Problem: the frontend cannot reach the backend on port 3300. Nothing below is live."
+        printerErrorMessage.textContent = "Problem: the frontend cannot reach the backend that served this page. Nothing below is live."
         printerErrorMessage.className = "error-message level-bad"
         renderEndstops(undefined)
+        // Bez backendu stejne zadny prikaz neodejde, takze zamek nema co
+        // chranit - nechat ho zavreny by jen znemoznilo jogovat po navratu.
+        renderJob(undefined)
         return
     }
 
@@ -567,5 +655,6 @@ async function loadNanoReport() {
     printerSpindlSpeed.textContent = `Spindle speed: ${formatNumber(data.spindlSpeed, 0)} rpm`
 
     renderEndstops(data.endstops)
+    renderJob(data)
     // jeste nejaka zmena svetilka na to aby to signalizovalo zmenu telemetrie
 }

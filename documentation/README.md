@@ -52,7 +52,7 @@ not duplicated here, so the two cannot drift apart.
 | Motors | NEMA 17, 200 steps/rev, drivers at half-stepping |
 | X, Y | GT2 belt, 16-tooth pulley → 12.5 steps/mm |
 | Z | T8 leadscrew, 2 mm pitch → 200 steps/mm |
-| Work area | 75 × 95 × 25 mm |
+| Work area | 60 × 80 × 15 mm between the endstops, 54 × 76 mm usable |
 | Spindle | RS-550, brushed, 12 V through a PWM MOSFET module |
 | UART | 115200 8-N-1 |
 

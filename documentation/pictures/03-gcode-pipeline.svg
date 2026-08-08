@@ -46,7 +46,7 @@
   <text class="lbl" x="172" y="384">pcb2gcode</text>
   <text class="mono" x="172" y="403">--config printer/millproject --front &lt;gerber&gt;</text>
   <text class="mono" x="172" y="420">--output-dir &lt;dir&gt; --front-output &lt;name&gt;.gcode</text>
-  <text class="note" x="172" y="440">checkBoardFits() reads the printed size and rejects boards over 75 x 95 mm</text>
+  <text class="note" x="172" y="440">checkBoardFits() reads the printed size and rejects boards over 54 x 76 mm</text>
 
   <path class="arr" d="M375,452 L375,484" marker-end="url(#p)"/>
 
