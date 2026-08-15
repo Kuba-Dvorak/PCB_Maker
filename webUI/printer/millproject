@@ -41,6 +41,36 @@ zero-start=true
 # potreba i polozit. Zmena tehle dvou cisel se MUSI promitnout
 # i do originOffsetX / originOffsetY v backend/server.js, jinak
 # kontrola velikosti desky pusti vetsi kus, nez se vejde.
+#
+# UPINACI HACKY NA OKRAJICH  [ZATIM NEZAVEDENO, jen popis]
+# Deska se drzi hacky po obvodu stolu, takze hrot na okraje nesmi -
+# narazil by do nich. Reseni by bylo posunout desku doprostred
+# pouzitelne plochy, coz je prave tenhle offset. Hodnoty nize se ale
+# ZATIM NEMENI a zustavaji na 3 a 2 - centrovani neni vlastnost stroje,
+# ale konkretni desky, takze patri do backendu k argumentum
+# --x-offset / --y-offset, kde uz jsou rozmery zname z checkBoardFits().
+# Tenhle odstavec je tady jen jako podklad, az na to dojde.
+#
+# Pouzitelny pas je ten, co si hlida checkBoardFits() v server.js -
+# odsazeny o offset z OBOU stran, aby zbylo misto na hacky i na
+# dalekem konci osy:
+#
+#   X od 3 do 57, tedy usableX = MAX_X - 2 * 3 = 54 mm
+#   Y od 2 do 78, tedy usableY = MAX_Y - 2 * 2 = 76 mm
+#
+# Vycentrovana deska sirky W a vysky H tim padem patri na
+#
+#   x-offset = 3 + (54 - W) / 2
+#   y-offset = 2 + (76 - H) / 2
+#
+# Rozmery desky vypise pcb2gcode do stdout a bere je i checkBoardFits()
+# z hlavicky gerberu (radky "Width:" a "Height:").
+#
+# POZOR, mechanicka past: kdyz je deska uchycena JEN po obvodu a reze
+# se doprostred, je pod hrotem nepodepreny rozpon. S V-bitem se kazde
+# prohnuti desky primo prepise do sirky rezu (viz sekce o frezovani).
+# Deska proto potrebuje podepreni i uprostred - nejlip oboustrannou
+# paskou na rovnou obetovanou podlozku, ne jen hacky po krajich.
 x-offset=3
 y-offset=2
 
@@ -59,40 +89,63 @@ y-offset=2
 # Hodnoty nize jsou ZMERENE na stroji, ne odhadnute:
 #
 #   Z = 10.00  bezpecna vyska pro rychloposuvy (zsafe)
-#   Z =  1.20  povrch medi (referencni rovina, sama se nikam nepise)
-#   Z =  1.10  hloubka rezu, 0.10 mm pod povrch (zwork)
-#   Z =  0.00  doraz Zmin - to je 1.2 mm POD povrchem medi
+#   Z =  1.60  rezne Z na X 3   (vysoky konec stolu)
+#   Z =  1.10  rezne Z na X 57  (nizky konec, tady se sazi nastroj)
+#   Z =  1.00  minimum po homingu na min (MINIMAL_DISTANCE_MM_Z)
+#   Z =  0.90  podlaha clampZ, pod ni uz je error 6
+#   Z =  0.00  doraz Zmin
 #
-# Kdyz budes chtit rezat hloubeji, SNIZUJ zwork (1.10 -> 1.05 je
-# 0.15 mm hluboko). Cim mensi cislo, tim hloubeji.
+# Povrch medi tedy NENI jedno cislo, ale rovina - stul klesa smerem k max X
+# o 0.5 mm (zmereno 15. 8. 2026). V ose Y naklon neni, meren tehdy taky.
+# Skutecne rezne Z drzi cutZAtXMax + tiltDrop v nanoComm, tenhle soubor
+# o nem nerozhoduje.
 #
-# !!! DOLNI STROP JE 1.0, NE 0.0 !!!
-# clampZ() v nanoCode/src/main.cpp dnes dela tohle:
-#     if (z <= MINIMAL_DISTANCE_MM_Z) { z = 0; }
-# Cokoliv na 1.0 nebo niz se tedy NEomezi na 1.0, ale spadne rovnou
-# na 0, tedy 1.2 mm pod med. Hrot 0.2 mm to neprezije. Mezi zwork
-# = 1.10 a timhle propadlem je 0.1 mm rezervy, takze zwork nizsi nez
-# 1.05 nesahat, dokud se ten clamp neopravi.
+# !!! DOLNI PODLAHA JE 0.9, NE 0.0 A NE 1.0 !!!
+# clampZ() v nanoCode/src/main.cpp radek 832 dela tohle:
+#     if (z < MINIMAL_DISTANCE_MM_Z - .1) { z = MINIMAL_DISTANCE_MM_Z - .1;
+#                                           currentError = 6; }
+# MINIMAL_DISTANCE_MM_Z je 1, takze se orezava pod 0.9. Zustava ale error 6
+# - a ten v gcodeSender() v nanoComm spadne do vetve "return false", takze
+# se JOB UKONCI uprostred rezu s hrotem v desce a bezicim vretenem.
+#
+# ODTUD PLYNE, PROC SE NASTROJ SAZI NA MAX X. Mezi minimem 1.0, o ktere se
+# freza dorazi, a tou podlahou 0.9 je jen 0.1 mm - a korekce potrebuje
+# celych 0.5 mm. Kdyby se nastroj sazel na X 3 (vysoky konec), lezel by
+# anchor nahore a druhy konec by vysel na 1.1 - 0.5 = 0.6, tedy cela spodni
+# polovina desky pres clamp a job pryc. Se sazenim na max X anchor lezi
+# dole a korekce od nej uz jen stoupa: 1.10 na X 57 az 1.60 na X 3.
+#
+# Druhy duvod pro stejne misto: deska, o kterou se freza dorazi, je soucast
+# toho nakloneneho stolu. Sazet pokazde jinde znamena dorazit o jinak vysoky
+# bod a posunout nulu az o celych 0.5 mm.
 #
 # zchange je 12.0, tedy nad zsafe a porad pod MAX_Z 15.
 #
 # pcb2gcode na to vypise varovani "Engraving depth (--zwork) is
 # greater than zero!" - to je v poradku a je to ocekavane.
 #
-# !!! zwork UZ NENI SKUTECNA HLOUBKA REZU !!!
-# Stul neni vodorovny, smerem k max X klesa. nanoComm proto kazdy rezny
-# pohyb prepocitava podle X - viz poznamka 8 na konci souboru. zwork=1.1
-# tady slouzi uz jen jako ZNACKA, podle ktere dekoder pozna, ze dany
-# pohyb je rezny a ne prejezd. Skutecna Z vyjde mezi 1.05 a 1.20.
-# Kdyz tohle cislo zmenis, MUSIS zmenit i gcodeCutZ v nanoComm/main.cpp,
-# jinak dekoder rezne pohyby prestane poznavat a nedosadi zadnou korekci.
+# Stul byl 8. 8. 2026 vyrovnany mechanicky, ale dvoudenni test ukazal, ze
+# to nestacilo. Korekce v nanoComm je proto od 15. 8. 2026 zase ZAPNUTA
+# (tiltEnabled = true), prepocitana na spad + anchor misto dvou absolutnich
+# hodnot a zvetsena z 0.15 na 0.5 mm. Viz poznamka 8.
+#
+# !!! zwork NENI skutecna hloubka rezu !!!
+# Je to VYHRADNE znacka, podle ktere dekoder pozna rezny pohyb. Skutecnou
+# hloubku nastavujes MECHANICKY - kolikrat kliknes krokem 0.1 nad minimum
+# pri sazeni nastroje - a to cislo patri do cutZAtXMax v nanoComm.
+# Snizovanim zwork se hloubka rezu NEZMENI, jen se rozejde znacka.
+#
+# gcodeCutZ v nanoComm/main.cpp musi porad sedet s timhle cislem.
+# Dekoder podle nej pozna, ktery pohyb je rezny, a do kazdeho takoveho pak
+# dosazuje Z z cutZForX(). Kdyz cisla prestanou sedet, dekoder rezne pohyby
+# prestane poznavat a korekce se neprojevi vubec nikde.
 zsafe=10.0
 zwork=1.1
 zchange=12.0
 
 
 # --- frezovani --------------------------------------------------------
-# mill-diameters = prumer hrotu rycího nastroje v mm
+# mill-diameters = prumer hrotu ryciho nastroje v mm
 # mill-feed      = posuv v rovine XY
 # mill-vertfeed  = posuv pri zajezdu do materialu (pomalejsi)
 # mill-speed     = otacky vretena, strop stroje je 20000
@@ -102,7 +155,42 @@ zchange=12.0
 # pracuje s mm/SEKUNDU (MAX_SPEED 160 znamena 160 mm/s).
 # mill-feed=200 tedy znamena 3.33 mm/s, ne 200 mm/s.
 # Nekdo v ceste musi delit 60, viz poznamka na konci souboru.
+
+
+# !!! mill-diameters=0.2 PLATI JEN PRO VALCOVOU FREZU !!!
+# Merenim 15. 8. 2026 vyslo, ze rez neni 0.2 mm siroky:
+#   - nejuzsi rucne udelana draha  ~0.4 mm
+#   - pri vetsi hloubce            ~2.0 mm
+# Valcova freza tohle udelat neumi, jeji sirka na hloubce nezavisi.
+# Znamena to, ze v klestine sedi KUZELOVY ryci hrot (V-bit), kde plati
+#
+#   sirka = hrot + 2 * hloubka * tan(uhel / 2)
+#
+# tedy sirka rezu je primo funkce hloubky. To vysvetluje i tu 2mm ryhu:
+# neni to vule ani hazivost, je to proste hlubsi zajezd do kuzele.
+#
+# Dusledek pro tenhle soubor: dokud tam je V-bit, je mill-diameters
+# jenom cislo, ktere pcb2gcode pouzije na rozestup drah, a se skutecnou
+# sirkou rezu nema nic spolecneho. Presnost izolace se pak nastavuje
+# hloubkou (zwork + tilt), ne timhle parametrem.
+#
+# ZMERENI UHLU HROTU, aby se dalo pocitat dopredu: udelej dve zkusebni
+# cary v odpadni casti desky na dvou znamych hloubkach (napr. rozdil
+# 0.10 mm) a zmer sirky. Pak
+#   tan(uhel / 2) = (sirka2 - sirka1) / (2 * (hloubka2 - hloubka1))
+# Az bude uhel znamy, da se ze zadane sirky izolace spocitat hloubka.
 mill-diameters=0.2
+
+# mill-feed NESNIZUJ. Nizsi posuv tenhle stroj zhorsuje, ne zlepsuje:
+# move2D pocita freqX = int(maxStepX / totalTime), coz je po dosazeni
+#   freqX = 12.5 * rychlost * |dx| / delka_segmentu
+# Cim mensi rychlost, tim casteji to spadne pod 1 a usekne se na nulu -
+# a osa se pak vubec nerozjede. Viz poznamka 9.
+# Druhy duvod je rezny: 200 mm/min pri 20000 ot/min a dvou britech je
+# posuv na zub 0.005 mm. To uz je na hranici, kdy hrot prestava odebirat
+# trisku a zacina med jenom hladit a tlacit pred sebou. Med se pak
+# neustrihne, ale odtrhne od laminatu - a to je presne ten popsany
+# "vytrhany" okraj.
 mill-feed=200
 mill-vertfeed=50
 mill-speed=20000
@@ -226,9 +314,39 @@ tsp-2opt=true
 #    si ty prejezdy odchytit v backendu a rozdelit je na
 #    zvednuti / rychloposuv / zajezd.
 #
-# 8) KOMPENZACE NAKLONU STOLU  [VYRESENO, ale NE tady]
-#    Stul neni vodorovny: k max X klesa. Zmereno, ze hrot musi byt
-#    v rezu na Z 1.20 na X 3 a na Z 1.05 na X 57.
+# 8) KOMPENZACE NAKLONU STOLU  [ZAPNUTA, SPAD + ANCHOR]
+#    Mechanicke vyrovnani z 8. 8. 2026 zbytkovy naklon neodstranilo.
+#    Test 13. - 15. 8. 2026 ukazal, ze korekce potreba je, a ze byla
+#    3x mensi, nez ma byt: mela rozpeti 0.15 mm, skutecny spad je 0.5 mm
+#    pres celou drahu X. V ose Y naklon zmeren nebyl zadny.
+#
+#    !!! PRIZNAK "NA MAX X TO NEREZE" NEROZLISI SPATNE ZNAMENKO
+#    !!! OD MOC MALEHO ROZPETI. Oboji vypada uplne stejne. Behem testu
+#    !!! se kvuli tomu ta dve cisla jednou zbytecne prohodila. Jedina
+#    !!! kontrola je dotek na obou koncich pri tiltEnabled = false.
+#
+#    ZMERENY STAV (15. 8. 2026): stul KLESA smerem k max X o 0.5 mm.
+#    Na X 3 je nejvys, na X 57 nejniz - tam hrot planda ve vzduchu.
+#
+#    Korekce se proto od 15. 8. 2026 nezadava dvema absolutnimi Z, ale
+#    spadem a anchorem, protoze absolutni cisla neresila, ze anchor musi
+#    lezet na tom konci, kde se sazi nastroj:
+#        float tiltDrop    = 0.50f;   // o kolik stul klesne X 3 -> X 57
+#        float cutZAtXMax  = 1.10f;   // rezne Z na max X = 1.0 + kliky*0.1
+#    Vysledek: 1.10 na X 57, 1.35 uprostred, 1.60 na X 3. Vse nad
+#    podlahou clampZ 0.9, viz sekce o ose Z vyse.
+#
+#    Vyrovnat stul mechanicky je porad lepsi nez kompenzovat softwarem -
+#    korekce resi jen naklon roviny, ne prohnuti, a musi se premerit po
+#    kazdem zasahu do stolu. Deska je ted na oboustranne pasce, takze
+#    podlozit nizky konec par listy papiru je nejlacinejsi zpusob, jak
+#    spad zmensit; kazda desetina dolu je desetina, kterou nemusi honit
+#    software, a vzdali pasmo Z od te podlahy 0.9.
+#
+#    JAK TO PREMERIT, at se to nemusi hadat: nastav tiltEnabled = false,
+#    najed hrotem na X 3 a sjed Z, dokud se nedotkne medi - zapis si Z.
+#    Totez na X 57. Rozdil je tiltDrop, mensi z tech dvou Z patri na max X
+#    a je z nej cutZAtXMax. Vetsi Z patri na ten konec, kde je stul VYS.
 #
 #    pcb2gcode to udelat neumi. Autoleveller (--al-front) sice existuje,
 #    ale generuje O-word subrutiny, promenne #, neprime odkazy ## a
@@ -239,14 +357,75 @@ tsp-2opt=true
 #    nepotrebujeme.
 #
 #    Korekce proto sedi v gcodeDecoder v nanoComm/main.cpp:
-#      - tiltXMin / tiltXMax        souradnice STROJE, ne desky
-#      - tiltZAtXMin / tiltZAtXMax  zmerena hloubka na obou koncich
-#      - cutZForX()                 linearni interpolace + zaokrouhleni
-#                                   na cely krok osy Z
+#      - tiltXMin / tiltXMax   souradnice STROJE, ne desky. Korekce je
+#                              vlastnost stroje, ne desky - kdyby se brala
+#                              z rozsahu nactenoho souboru, dostala by mala
+#                              deska uprostred stolu cely spad na par mm.
+#      - tiltDrop              o kolik stul klesne mezi temi dvema X
+#      - cutZAtXMax            rezne Z na max X, tedy anchor cele primky
+#      - cutZForX()            linearni interpolace od anchoru + zaokrouhleni
+#                              na cely krok osy Z. Mimo pasmo se X orizne,
+#                              takze se nikdy neextrapoluje.
 #
-#    To zaokrouhleni je nutne. Sklon je 0.0028 mm Z na 1 mm X, takze na
-#    beznem segmentu (median 0.23 mm) vyjde zmena Z na desetinu kroku
-#    a firmware ji orizne na nulu. Zmereno na ten.GBL: bez zaokrouhleni
-#    chyba hloubky 0.040 mm (40 % rezu), se zaokrouhlenim prakticky nula.
+#    To zaokrouhleni je nutne. Sklon je 0.0093 mm Z na 1 mm X, takze na
+#    beznem segmentu (median 0.23 mm) vyjde zmena Z na necele polovine
+#    kroku a firmware ji orizne na nulu. Zmereno na ten.GBL jeste pri
+#    starem rozpeti 0.15 mm: bez zaokrouhleni chyba hloubky 0.040 mm
+#    (40 % rezu), se zaokrouhlenim prakticky nula. Pri 0.5 mm je ten
+#    rozdil umerne vetsi, premereno to nebylo.
 #    Patri k tomu i "+ 0.5f" v moveZ() v nanoCode/src/main.cpp - jedno
 #    bez druheho nefunguje.
+
+# 9) POMALY POSUV = PRESKOCENE OSY = "SKOK" NA DALSI BOD  [V FIRMWARE]
+#    Symptom z testu 13. - 15. 8. 2026: pri pomalem posuvu hrot dojede
+#    do bodu A, zavrta se, pohyb na B se neprovede, a nasledujici pohyb
+#    "skoci" rovnou na C. Pri rychlem posuvu se to nedeje.
+#
+#    Neni to vule ani ztracene kroky. Je to move2D() v nanoCode:
+#
+#        int freqX = int(myCalib.maxStepX / totalTime);
+#        if (freqX != 0) { ... setupFreqX(freqX); }
+#        ...
+#        myToolHead.position.x += (maxStepX / stepLenghtGT2) * copysign(...)
+#
+#    Po dosazeni totalTime = delka / rychlost a maxStepX = 12.5 * |dx|:
+#
+#        freqX = 12.5 * rychlost * |dx| / delka
+#
+#    Kdyz to vyjde pod 1, int() to usekne na 0, setupFreqX se nezavola
+#    a osa se VUBEC nerozjede. Pozice se ale pricte tak jako tak, takze
+#    firmware si mysli, ze tam dojel. Chyba se neopravi, protoze kazdy
+#    dalsi cil se pocita z te nespravne pozice - a hromadi se, dokud
+#    neni videt jako skok.
+#
+#    Zmereno na ten.GBL (725 pohybu), pocet pohybu s mrtvou osou a
+#    nejvetsi nasbirana odchylka pred opravou:
+#
+#        F400   6.67 mm/s     3     0.240 mm
+#        F200   3.33 mm/s     4     0.253 mm
+#        F100   1.67 mm/s     8     0.339 mm
+#        F50    0.83 mm/s    11     0.466 mm
+#        F20    0.33 mm/s    92     7.077 mm
+#        F10    0.17 mm/s   275    14.573 mm
+#
+#    Po oprave je to na vsech posuvech 0 pohybu a 0.000 mm.
+#
+#    Zavislost na rychlosti je primo v tom vzorci - rychlost je v
+#    citateli. Osa se preskoci, kdyz |dx| / delka < 1 / (12.5 * v):
+#
+#        v = 3.33 mm/s (mill-feed 200)   segmenty do 1.4 stupne od osy
+#        v = 1.67 mm/s (mill-feed 100)   segmenty do 2.7 stupne od osy
+#        v = 0.83 mm/s (mill-feed  50)   segmenty do 5.5 stupne od osy
+#
+#    Proto pomaleji = hur. Snizovat mill-feed tenhle problem NERESI,
+#    zvetsuje ho. Proto ta poznamka u mill-feed vyse.
+#
+#    Opravit se to musi ve firmware, dvema zpusoby soucasne:
+#      a) nenechat frekvenci spadnout na nulu, kdyz je co krokovat
+#           if (freqX == 0 && myCalib.maxStepX > 0) { freqX = 1; }
+#         Bezpecne: masterFreq je 20000, takze counterXMax = 20000 a
+#         constantX = 20000 * timeConst = ~10.7e6 - oboji se do
+#         volatile uint32_t vejde s rezervou.
+#      b) neprocitat pozici, kdyz se osa nerozjela - pod "if (freqX)".
+#         S bodem a) uz to nenastane, ale je to levna pojistka proti
+#         tomu, aby se chyba zase zacala tise hromadit.

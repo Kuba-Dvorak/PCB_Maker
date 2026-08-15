@@ -716,26 +716,65 @@ struct gcodeDecoder {
     std::array<char, 7> instructionChars = {'X', 'Y', 'Z', 'I', 'J', 'F', 'S'};
 
     // --- naklon stolu -----------------------------------------------------
-    // Deska stolu neni vodorovna, smerem k max X klesa. Korekce je linearni
+    // Deska stolu neni vodorovna, smerem k max X KLESA. Korekce je linearni
     // v X a je to vlastnost STROJE, ne desky - proto se pocita ze souradnic
     // stroje a ne z rozsahu, ktery ma zrovna nacteny soubor. Kdyby se brala
     // z desky, dostala by mala deska uprostred stolu cely spad na par mm.
     //
-    // Zmerene hodnoty: v hloubce rezu musi hrot stat na Z 1.20 na X 3
-    // a na Z 1.05 na X 57. Plati pro souradny system, kde Z = 0 je doraz
-    // Zmin, tedy 1.2 mm pod povrchem medi.
+    // V ose Y bylo 15. 8. 2026 zmereno, ze naklon nema, proto tu zadny clen
+    // pro Y neni. Kdyby se to zmenilo, dvoubodova primka v X to nespravi
+    // a musela by nastoupit rovina ze tri bodu.
+    //
+    // ZNAMENKO. Do 15. 8. 2026 tu byly dve absolutni hodnoty, ktere si mezi
+    // sebou uz jednou vymenily misto, protoze priznak "na max X to nerezne"
+    // vyrobi stejne dobre obracene znamenko jako moc male rozpeti. Z toho
+    // priznaku se ty dva pripady rozlisit NEDA. Jedina kontrola je dotek na
+    // obou koncich pri tiltEnabled = false - a vetsi Z patri tam, kde je
+    // stul VYS, tedy na X min.
+    //
     // Vypinac pro A/B test. false = zadna korekce, do kazdeho rezneho pohybu
-    // se dosadi rovnou gcodeCutZ, takze se Z za celou dratu nehne a chova se
-    // to jako pred zavedenim levelingu. Slouzi k rozliseni, jestli pripadny
-    // problem dela naklon, nebo neco jineho.
+    // se dosadi rovnou cutZAtXMax, takze se Z za celou dratu nehne a chova
+    // se to jako pred zavedenim levelingu. Slouzi k rozliseni, jestli
+    // pripadny problem dela naklon, nebo neco jineho.
     bool tiltEnabled = true;
 
     float tiltXMin = 3.0f, tiltXMax = 57.0f;
-    float tiltZAtXMin = 1.20f, tiltZAtXMax = 1.05f;
+
+    // O kolik stul klesne mezi tiltXMin a tiltXMax. Zmereno 15. 8. 2026 jako
+    // 0.5 mm pres celou pojezdovou drahu X. Pokud to bylo mereno pres celych
+    // 0 az 60 a ne pres pouzitelne pasmo 3 az 57, patri sem 0.45.
+    float tiltDrop = 0.50f;
+
+    // --- kde je nula ------------------------------------------------------
+    // Nastroj se sazi tak, ze se sjede Z na minimum (po homingu na min je to
+    // Z 1.0, viz MINIMAL_DISTANCE_MM_Z v nanoCode/src/main.cpp), freza se
+    // zasune do klestiny na doraz o desku a klestina se utahne. Rezna hloubka
+    // se pak nastavi tim, kolikrat se klikne krokem 0.1 nad to minimum.
+    // Vylozeni nastroje se tedy do zadne konstanty neuklada, vytvari se znovu
+    // pri kazde vymene - proto tady staci absolutni Z a nemusi to byt
+    // relativni k necemu, co by se muselo merit.
+    //
+    // Ma to ale jednu podminku: deska, o kterou se freza dorazi, je soucast
+    // toho nakloneneho stolu. Sazet nastroj pokazde na jinem X znamena
+    // dorazit o jinak vysoky bod a posunout nulu az o celych tiltDrop.
+    // PROTO SE NASTROJ SAZI VZDY NA MAX X.
+    //
+    // Anchor korekce lezi na tomtez konci schvalne. clampZ ve firmwaru srazi
+    // vsechno pod 0.9 a hodi error 6, ktery utne job uprostred rezu - a mezi
+    // minimem 1.0 a tou podlahou je jen 0.1 mm. Kdyby byl anchor na X min,
+    // druhy konec by spadl na 1.1 - 0.5 = 0.6 a cela spodni polovina desky by
+    // sla pres clamp. Takhle korekce od anchoru jen stoupa.
+    //
+    // Rezne Z na max X = minimum 1.0 + pocet kliku * 0.1. Tady je dosazen
+    // jeden klik. Pri dvou nebo trech sem patri 1.2 nebo 1.3.
+    float cutZAtXMax = 1.1f;
 
     // Hloubka rezu, kterou pise pcb2gcode (zwork v printer/millproject).
-    // Slouzi jen jako znacka "tenhle Z je rezny", skutecnou hodnotu urcuji
-    // tiltZAtXMin/Max vyse. Kdyz se zmeni millproject, musi se zmenit i tady.
+    // Slouzi VYHRADNE jako znacka "tenhle Z je rezny" pro detekci v
+    // applyMachineState. Skutecnou hodnotu urcuje cutZAtXMax vyse a s touhle
+    // se shodovat nemusi. Kdyz se zmeni zwork v millproject, musi se zmenit
+    // i tady, jinak se rezne pohyby prestanou poznavat a korekce se prestane
+    // dosazovat uplne.
     float gcodeCutZ = 1.1f;
 
     // Kroku na 1 mm osy Z, musi sedet se stepLenghtT8 v nanoCode/src/main.cpp.
@@ -884,15 +923,20 @@ struct gcodeDecoder {
 
 
     // Hloubka rezu pro dane X po zapocteni naklonu stolu, zaokrouhlena na
-    // cely krok osy Z. To zaokrouhleni neni kosmetika: sklon je 0.0028 mm
+    // cely krok osy Z. To zaokrouhleni neni kosmetika: sklon je 0.0093 mm
     // na 1 mm X, takze na beznem segmentu (median 0.23 mm) vyjde zmena Z
-    // na desetinu kroku. Kdyby se posilaly nezaokrouhlene hodnoty, firmware
-    // by kazdou z nich orizl na nula kroku a naklon by se nikdy neprojevil.
-    // Takhle se Z drzi na mrizce a posune se o presne jeden krok vzdycky,
-    // kdyz uz na nej X ujelo dost.
+    // na necele polovine kroku. Kdyby se posilaly nezaokrouhlene hodnoty,
+    // firmware by kazdou z nich orizl na nula kroku a naklon by se nikdy
+    // neprojevil. Takhle se Z drzi na mrizce a posune se o presne jeden krok
+    // vzdycky, kdyz uz na nej X ujelo dost.
+    //
+    // Anchor je na max X, kde se sazi nastroj, a odtud korekce jen STOUPA
+    // smerem k X min - viz duvod u cutZAtXMax. Mimo pasmo se X orizne, takze
+    // pripadny pohyb za tiltXMin/Max drzi hodnotu krajniho bodu a nikdy
+    // neextrapoluje.
     float cutZForX(float x) const {
         if (!tiltEnabled) {
-            return gcodeCutZ;
+            return cutZAtXMax;
         }
 
         if (x < tiltXMin) {
@@ -903,8 +947,8 @@ struct gcodeDecoder {
             x = tiltXMax;
         }
 
-        float ratio = (x - tiltXMin) / (tiltXMax - tiltXMin);
-        float wanted = tiltZAtXMin + (tiltZAtXMax - tiltZAtXMin) * ratio;
+        float ratio = (tiltXMax - x) / (tiltXMax - tiltXMin);
+        float wanted = cutZAtXMax + tiltDrop * ratio;
 
         return std::round(wanted * zStepsPerMM) / zStepsPerMM;
     }

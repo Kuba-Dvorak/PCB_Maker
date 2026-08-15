@@ -49,6 +49,29 @@ let jogLocked = null
 // jede jinak, nez kam si posunul posuvnik.
 const maxSpeedZ = 10
 
+// Kroku na 1 mm, musi sedet se stepLenghtGT2 a stepLenghtT8 v
+// nanoCode/src/main.cpp. X a Y jedou po GT2 remeni (12.5 kroku/mm, tedy
+// jeden krok = 0.08 mm), Z po trapezove tyci T8 (200 kroku/mm, 0.005 mm).
+//
+// Posuvnik kroku jde dolu az na 0.05 mm kvuli sazeni nastroje v ose Z.
+// Na X a Y je ale 0.05 mm POD jednim krokem: move2D pocita
+// maxStepX = abs(12.5 * 0.05) = int(0.625) = 0, takze se nestane vubec nic
+// a tlacitko vypada jako mrtve. Proto ta hlaska nize.
+//
+// Pozor na rozdil v zaokrouhleni: move2D kroky USEKAVA (int cast), moveZ
+// je ZAOKROUHLUJE (+ 0.5f pred castem). Nasleduje se to tady stejne, aby
+// vypis odpovidal tomu, co stroj opravdu ujede.
+const stepsPerMMXY = 12.5
+const stepsPerMMZ = 200
+
+function realStepFor(axis, size) {
+    if (axis === "z") {
+        return Math.trunc(size * stepsPerMMZ + 0.5) / stepsPerMMZ
+    }
+
+    return Math.trunc(size * stepsPerMMXY) / stepsPerMMXY
+}
+
 const gerberUpload = document.getElementById("gerberUpload")
 const gerberFeedback = document.getElementById("gerberFeedback")
 
@@ -371,6 +394,15 @@ function jogButton(axis, direction) {
         if (axis === "z" && speed > maxSpeedZ) {
             console.log(`[FE] Z jog feed ${speed} mm/s capped to ${maxSpeedZ} mm/s`)
             speed = maxSpeedZ
+        }
+
+        const real = realStepFor(axis, currentSizeOperator)
+
+        if (real === 0) {
+            console.warn(`[FE] ${axis.toUpperCase()} jog ${currentSizeOperator} mm is below one motor step - firmware rounds it to zero steps and the axis will not move at all`)
+        }
+        else if (Math.abs(real - currentSizeOperator) > 1e-9) {
+            console.log(`[FE] ${axis.toUpperCase()} jog ${currentSizeOperator} mm is not a whole number of steps, machine will move ${real.toFixed(4)} mm`)
         }
 
         await sendOperate(axis, direction * currentSizeOperator, speed, currentSpindleSpeedSizeOperator)

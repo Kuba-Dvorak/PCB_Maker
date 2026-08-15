@@ -1025,21 +1025,8 @@ struct cnc {
         else {
             freqZ = int(myToolHead.speed * myCalib.stepLenghtT8);
         }
-
-        // maxStepZ MUSI byt nastaveny drive nez setupFreqZ, protoze ten zapne
-        // clockZ a tim spusti interuptZ. Do te chvile ISR porovnava curStepZ
-        // proti hodnote z PREDCHOZIHO pohybu Z - a kdyz byla mensi, zastavi
-        // pohyb hned na zacatku. moveZ pak stejne zapise myToolHead.z = z,
-        // takze se osa nikam nedostane, ale firmware si mysli, ze je na cili.
-        // move2D to ma spravne uz ted (maxStepX/Y pred setupFreqX/Y), Z bylo
-        // jedine s obracenym poradim.
-        //
-        // +0.5 je zaokrouhleni, ne orezani. Obe Z jsou floaty poskladane
-        // v loadNum() z desetinneho textu, takze rozdil dvou sousednich
-        // hodnot vzdalenych presne jeden krok vyjde 0.99999994 a ne 1.0.
-        // Pri pouhem prevodu na int by z toho byla nula a korekce naklonu
-        // stolu, kterou posila nanoComm, by se cela zahodila.
-        myCalib.maxStepZ = (int)(myCalib.stepLenghtT8 * fabs(z - myToolHead.z) + 0.5f);
+        float lenghtZ = z - myToolHead.z;
+        myCalib.maxStepZ = (int)(myCalib.stepLenghtT8 * fabs(lenghtZ) + 0.5f);
 
         myCalib.finishedJob -= 1;
         myCalib.setupFreqZ(freqZ);
@@ -1053,7 +1040,7 @@ struct cnc {
             myCalib.currentError = 7;
         }
 
-        myToolHead.z = z;
+        myToolHead.z += ((float)myCalib.maxStepZ / myCalib.stepLenghtT8) * copysign(1.0f, lenghtZ);
     }
 
     void move2D(Position location) {
@@ -1097,11 +1084,31 @@ struct cnc {
         int freqX = int(myCalib.maxStepX / totalTime); // matematicky prepis tohodle:  1 / (totalTime / totalStepsX)
         int freqY = int(myCalib.maxStepY / totalTime);
 
+        // Po dosazeni totalTime = lenght / speed a maxStepX = 12.5 * |dx| je
+        //     freqX = 12.5 * speed * |dx| / lenght
+        // takze na segmentu skoro rovnobeznem s osou Y (a pri malem posuvu)
+        // to vyjde pod 1 a int() to usekne na nulu. Bez tehle pojistky by se
+        // setupFreqX nezavolal, osa by se vubec nerozjela, ale pozice by se
+        // dole pricetla - a protoze kazdy dalsi cil se pocita z ni, chyba by
+        // se uz neopravila, jen hromadila. Merene na ten.GBL (725 pohybu):
+        // pri F200 se to tykalo 4 pohybu a nasbiralo 0.253 mm, pri F20 uz
+        // 92 pohybu a 7.077 mm - viz poznamka 9 v printer/millproject.
+        // Jeden krok za sekundu je pomaly, ale freqX == 0 znamena
+        // maxStepX < totalTime, takze se stejne stihne driv, nez mel pohyb
+        // podle zadaneho posuvu trvat.
+        if (freqX == 0 && myCalib.maxStepX > 0) {
+            freqX = 1;
+        }
+
+        if (freqY == 0 && myCalib.maxStepY > 0) {
+            freqY = 1;
+        }
+
         if (freqX != 0) {
             myCalib.finishedJob -= 1;
             myCalib.setupFreqX(freqX);
         }
-        
+
         if (freqY != 0) {
             myCalib.finishedJob -= 1;
             myCalib.setupFreqY(freqY);
@@ -1115,7 +1122,16 @@ struct cnc {
             myCalib.currentError = 7;
         }
 
-        myToolHead.position = location;
+        // Pozice se smi pricist jen tam, kde se opravdu krokovalo. S pojistkou
+        // vyse uz freq == 0 pri maxStep > 0 nenastane, tohle je levna ochrana
+        // proti tomu, aby se ta chyba zase zacala tise scitat.
+        if (freqX != 0) {
+            myToolHead.position.x += ((float)myCalib.maxStepX / myCalib.stepLenghtGT2) * copysign(1.0f, lenghtX);
+        }
+
+        if (freqY != 0) {
+            myToolHead.position.y += (((float)myCalib.maxStepY / myCalib.stepLenghtGT2) * copysign(1.0f, lenghtY));
+        }
     }
 
     void controlSpindl(int speed) {
