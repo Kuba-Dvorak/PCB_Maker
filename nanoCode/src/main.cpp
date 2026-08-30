@@ -802,12 +802,12 @@ struct cnc {
     }
 
     void clampLocation(Position &location) {
-        if (location.x > myCalib.maxX) {
+        if (location.x > myCalib.maxX + MINIMAL_DISTANCE_MM_X + .1) {
             location.x = myCalib.maxX;
             myCalib.currentError = 6;
         }
 
-        if (location.y > myCalib.maxY) {
+        if (location.y > myCalib.maxY + MINIMAL_DISTANCE_MM_Y + .1) {
             location.y = myCalib.maxY;
             myCalib.currentError = 6;
         }
@@ -824,7 +824,7 @@ struct cnc {
     }
 
     void clampZ(float &z) {
-        if (z > myCalib.maxZ) {
+        if (z > myCalib.maxZ + MINIMAL_DISTANCE_MM_Z + .1) {
             z = myCalib.maxZ;
             myCalib.currentError = 6;
         }

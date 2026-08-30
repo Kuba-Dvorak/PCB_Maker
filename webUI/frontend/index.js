@@ -29,6 +29,8 @@ const jobBar = document.getElementById("jobBar")
 const jobNameText = document.getElementById("jobName")
 const jobLineText = document.getElementById("jobLine")
 
+const jobCurrentList = document.getElementById("jobCurrentList")
+
 // Vsechno, cim jde strojem hnout rucne. Behem jobu se to zamyka, aby se
 // doprostred frezovani nedala poslat druha sada souradnic. Prekryv sam
 // o sobe nestaci - klavesnici by se na tlacitka poradu dalo dostat.
@@ -689,4 +691,9 @@ async function loadNanoReport() {
     renderEndstops(data.endstops)
     renderJob(data)
     // jeste nejaka zmena svetilka na to aby to signalizovalo zmenu telemetrie
+}
+
+
+async function loadCurrentJobList() {
+    
 }

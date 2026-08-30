@@ -721,9 +721,11 @@ struct gcodeDecoder {
     // stroje a ne z rozsahu, ktery ma zrovna nacteny soubor. Kdyby se brala
     // z desky, dostala by mala deska uprostred stolu cely spad na par mm.
     //
-    // V ose Y bylo 15. 8. 2026 zmereno, ze naklon nema, proto tu zadny clen
-    // pro Y neni. Kdyby se to zmenilo, dvoubodova primka v X to nespravi
-    // a musela by nastoupit rovina ze tri bodu.
+    // V ose Y stroj naklon nema, meren 15. 8. 2026, proto tu zadny clen pro
+    // Y neni. Co se v Y meni, je posazeni DESKY - kazda lezi jinak a zadna
+    // konstanta to netrefi. Proto se Y nekompenzuje a misto toho se jede o
+    // kousek hloubeji, viz cutZAtXMax. Kdyby naklon v Y mel i stroj, primka
+    // v X uz by nestacila a musela by nastoupit rovina ze tri bodu.
     //
     // ZNAMENKO. Do 15. 8. 2026 tu byly dve absolutni hodnoty, ktere si mezi
     // sebou uz jednou vymenily misto, protoze priznak "na max X to nerezne"
@@ -740,10 +742,13 @@ struct gcodeDecoder {
 
     float tiltXMin = 3.0f, tiltXMax = 57.0f;
 
-    // O kolik stul klesne mezi tiltXMin a tiltXMax. Zmereno 15. 8. 2026 jako
-    // 0.5 mm pres celou pojezdovou drahu X. Pokud to bylo mereno pres celych
-    // 0 az 60 a ne pres pouzitelne pasmo 3 az 57, patri sem 0.45.
-    float tiltDrop = 0.50f;
+    // O kolik stul klesne mezi tiltXMin a tiltXMax. Prvni odhad z 15. 8. 2026
+    // byl 0.5 mm, premereno 16. 8. 2026 na ~1 mm pres celou pojezdovou drahu
+    // X, tedy pres 0 az 60. Prepocteno na pouzitelne pasmo 3 az 57 by z toho
+    // vyslo 0.90; zustava tu rovnou 1.00, protoze o kousek hlubsi rez vadi
+    // min nez rez, ktery se na jednom konci desky nedotkne. Kdyby to na X min
+    // zabiralo uz moc, je 0.90 ta striktne prepoctena hodnota.
+    float tiltDrop = 1.00f;
 
     // --- kde je nula ------------------------------------------------------
     // Nastroj se sazi tak, ze se sjede Z na minimum (po homingu na min je to
@@ -762,17 +767,20 @@ struct gcodeDecoder {
     // Anchor korekce lezi na tomtez konci schvalne. clampZ ve firmwaru srazi
     // vsechno pod 0.9 a hodi error 6, ktery utne job uprostred rezu - a mezi
     // minimem 1.0 a tou podlahou je jen 0.1 mm. Kdyby byl anchor na X min,
-    // druhy konec by spadl na 1.1 - 0.5 = 0.6 a cela spodni polovina desky by
-    // sla pres clamp. Takhle korekce od anchoru jen stoupa.
+    // druhy konec by spadl na 1.2 - 1.0 = 0.2, tedy hluboko pod podlahu, a
+    // sla by pres clamp cela spodni polovina desky. Takhle korekce od anchoru
+    // jen stoupa.
     //
-    // Rezne Z na max X = minimum 1.0 + pocet kliku * 0.1. Tady je dosazen
-    // jeden klik. Pri dvou nebo trech sem patri 1.2 nebo 1.3.
-    float cutZAtXMax = 1.1f;
+    // Rezne Z na max X = minimum 1.0 + pocet kliku * 0.1. Tady jsou dosazeny
+    // dva kliky, stav k 16. 8. 2026. Pri jednom nebo trech sem patri 1.1 nebo
+    // 1.3. Tenhle konstantni prevys nad dotekem je zaroven to, cim se resi
+    // ruzne posazeni desky v Y - proto radsi o klik vic nez min.
+    float cutZAtXMax = 1.2f;
 
     // Hloubka rezu, kterou pise pcb2gcode (zwork v printer/millproject).
     // Slouzi VYHRADNE jako znacka "tenhle Z je rezny" pro detekci v
     // applyMachineState. Skutecnou hodnotu urcuje cutZAtXMax vyse a s touhle
-    // se shodovat nemusi. Kdyz se zmeni zwork v millproject, musi se zmenit
+    // se shodovat nemusi - od 16. 8. 2026 se uz neshoduje (1.1 proti 1.2). Kdyz se zmeni zwork v millproject, musi se zmenit
     // i tady, jinak se rezne pohyby prestanou poznavat a korekce se prestane
     // dosazovat uplne.
     float gcodeCutZ = 1.1f;
@@ -923,9 +931,10 @@ struct gcodeDecoder {
 
 
     // Hloubka rezu pro dane X po zapocteni naklonu stolu, zaokrouhlena na
-    // cely krok osy Z. To zaokrouhleni neni kosmetika: sklon je 0.0093 mm
+    // cely krok osy Z. To zaokrouhleni neni kosmetika: sklon je 0.0185 mm
     // na 1 mm X, takze na beznem segmentu (median 0.23 mm) vyjde zmena Z
-    // na necele polovine kroku. Kdyby se posilaly nezaokrouhlene hodnoty,
+    // 0.0043 mm, porad pod jeden krok 0.005 mm. Kdyby se posilaly
+    // nezaokrouhlene hodnoty,
     // firmware by kazdou z nich orizl na nula kroku a naklon by se nikdy
     // neprojevil. Takhle se Z drzi na mrizce a posune se o presne jeden krok
     // vzdycky, kdyz uz na nej X ujelo dost.
@@ -1378,12 +1387,14 @@ struct communicator {
             }
 
             else {
+                myTCPUser.sendData(nanoReport(1, 10));
                 return false;
             }
         }
 
         if (curReport.status == 1) {
             std::cout << "[UART] Arduino did not respond, current report is from C++ comm." << std::endl;
+            myTCPUser.sendData(nanoReport(1, 10));
             return false;
         }
 
@@ -1395,7 +1406,7 @@ struct communicator {
 
             if (cmd.command == 255 || cmd.command == 7) {
                 std::cout << "[GCODE] Current G-code task finished." << std::endl;
-                myTCPUser.sendData(myUART.listenUART());
+                myTCPUser.sendData(nanoReport(1, 11));
                 return false;
             }
         }

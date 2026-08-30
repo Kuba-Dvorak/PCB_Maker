@@ -89,14 +89,16 @@ y-offset=2
 # Hodnoty nize jsou ZMERENE na stroji, ne odhadnute:
 #
 #   Z = 10.00  bezpecna vyska pro rychloposuvy (zsafe)
-#   Z =  1.60  rezne Z na X 3   (vysoky konec stolu)
-#   Z =  1.10  rezne Z na X 57  (nizky konec, tady se sazi nastroj)
+#   Z =  2.20  rezne Z na X 3   (vysoky konec stolu)
+#   Z =  1.20  rezne Z na X 57  (nizky konec, tady se sazi nastroj)
 #   Z =  1.00  minimum po homingu na min (MINIMAL_DISTANCE_MM_Z)
 #   Z =  0.90  podlaha clampZ, pod ni uz je error 6
 #   Z =  0.00  doraz Zmin
 #
 # Povrch medi tedy NENI jedno cislo, ale rovina - stul klesa smerem k max X
-# o 0.5 mm (zmereno 15. 8. 2026). V ose Y naklon neni, meren tehdy taky.
+# o ~1 mm (premereno 16. 8. 2026, prvni odhad 15. 8. byl 0.5 mm).
+# V ose Y naklon nema STROJ, ale ma ho DESKA a kazda jinak, takze se v Y
+# nekompenzuje a jede se radsi o klik hloubeji.
 # Skutecne rezne Z drzi cutZAtXMax + tiltDrop v nanoComm, tenhle soubor
 # o nem nerozhoduje.
 #
@@ -110,14 +112,14 @@ y-offset=2
 #
 # ODTUD PLYNE, PROC SE NASTROJ SAZI NA MAX X. Mezi minimem 1.0, o ktere se
 # freza dorazi, a tou podlahou 0.9 je jen 0.1 mm - a korekce potrebuje
-# celych 0.5 mm. Kdyby se nastroj sazel na X 3 (vysoky konec), lezel by
-# anchor nahore a druhy konec by vysel na 1.1 - 0.5 = 0.6, tedy cela spodni
-# polovina desky pres clamp a job pryc. Se sazenim na max X anchor lezi
-# dole a korekce od nej uz jen stoupa: 1.10 na X 57 az 1.60 na X 3.
+# cely 1 mm. Kdyby se nastroj sazel na X 3 (vysoky konec), lezel by anchor
+# nahore a druhy konec by vysel na 1.2 - 1.0 = 0.2, tedy hluboko pod
+# podlahou a job pryc hned na zacatku. Se sazenim na max X anchor lezi dole
+# a korekce od nej uz jen stoupa: 1.20 na X 57 az 2.20 na X 3.
 #
 # Druhy duvod pro stejne misto: deska, o kterou se freza dorazi, je soucast
 # toho nakloneneho stolu. Sazet pokazde jinde znamena dorazit o jinak vysoky
-# bod a posunout nulu az o celych 0.5 mm.
+# bod a posunout nulu az o cely 1 mm.
 #
 # zchange je 12.0, tedy nad zsafe a porad pod MAX_Z 15.
 #
@@ -127,7 +129,8 @@ y-offset=2
 # Stul byl 8. 8. 2026 vyrovnany mechanicky, ale dvoudenni test ukazal, ze
 # to nestacilo. Korekce v nanoComm je proto od 15. 8. 2026 zase ZAPNUTA
 # (tiltEnabled = true), prepocitana na spad + anchor misto dvou absolutnich
-# hodnot a zvetsena z 0.15 na 0.5 mm. Viz poznamka 8.
+# hodnot a zvetsena z 0.15 na 0.5 mm; 16. 8. 2026 po premereni na 1.0 mm.
+# Viz poznamka 8.
 #
 # !!! zwork NENI skutecna hloubka rezu !!!
 # Je to VYHRADNE znacka, podle ktere dekoder pozna rezny pohyb. Skutecnou
@@ -191,7 +194,7 @@ mill-diameters=0.2
 # trisku a zacina med jenom hladit a tlacit pred sebou. Med se pak
 # neustrihne, ale odtrhne od laminatu - a to je presne ten popsany
 # "vytrhany" okraj.
-mill-feed=200
+mill-feed=300
 mill-vertfeed=50
 mill-speed=20000
 
@@ -234,9 +237,36 @@ nom6=true
 # 0.04 mm je pulka kroku: odchylka zustane pod rozlisenim stroje
 # a "uplne mrtve" pohyby (nehne se nic, prikaz jen zabere cas
 # a jeden report) zmizi uplne. Vic uz kazi geometrii viditelne.
+#
+# POZOR NA VAZBU NA KOREKCI NAKLONU: optimise slucuje kratke segmenty
+# do delsich, ale cutZForX() prirazuje Z na CELY segment. Pri spadu
+# 0.0185 mm/mm da segment dlouhy 5 mm rozdil hloubky 0.09 mm uvnitr
+# jednoho pohybu - pri V-bitu skoro dvojnasobek rezne hloubky. Kdyby
+# korekce prestala sedet rovnomerne, je to prvni podezrely; resenim
+# je rozsekat dlouhe rezne segmenty v dekoderu na kousky po 1-2 mm.
 optimise=0.04mm
 eulerian-paths=true
 tsp-2opt=true
+
+# !!! backtrack=0 JE TO, CO ZABRANI PREJEZDUM V REZNE HLOUBCE !!!
+# Vychozi hodnota je NEKONECNO. Man k 2.5.0 rika doslova:
+#
+#   --backtrack arg (=inf)   allow retracing a milled path if it's faster
+#                            than retract-move-lower
+#
+# S nekonecnem je pcb2gcode ochotny projet LIBOVOLNE dlouhy kus dole,
+# jen aby usetril cas oproti zvednuti, prejezdu a zajezdu. To je presne
+# ten mechanismus, ktery generoval dlouhe G01 v hloubce zwork pres mista,
+# kde ma zustat med (drive poznamka 7).
+#
+# 0 znamena: nikdy nezustavej dole kvuli casu. Kazdy prechod mezi dvema
+# izolacnimi smyckami se udela jako zvednuti na zsafe, rychloposuv,
+# zajezd. Job bude o neco delsi, ale nic se neurizne mimo drahu.
+#
+# Tohle NENI totez co eulerian-paths ani tsp-2opt - ty resi PORADI
+# a opakovani drah, backtrack resi VYSKU, ve ktere se mezi nimi prejizdi.
+# Proto vypinani eulerian-paths ten problem drive neodstranilo.
+backtrack=0
 
 
 # ======================================================================
@@ -288,6 +318,13 @@ tsp-2opt=true
 #    vubec nebezi. Snizeni mill-speed treba na 19000 da stridu 242
 #    a PWM se zapne i s pripadnym pistenim.
 #
+#    POZNAMKA: plna strida je pro frezovani spis vyhoda. Timer2 jede
+#    defaultne na 490 Hz, coz je uprostred slysitelneho pasma, a motor
+#    na te frekvenci hlasite chrochta a rozezvuci tisteny drzak. Pri 255
+#    zadne spinani neni. Kdyby PWM bylo potreba, patri do setup()
+#    prescaler nad slysitelnost:  TCCR2B = (TCCR2B & 0b11111000) | 0b010;
+#    (3.9 kHz; 0b001 dava 31 kHz, ale roste spinaci ztrata na MOSFETu).
+#
 #    Pozor na navaznost: pcb2gcode vlozi za hlavicku blok vymeny
 #    nastroje "T0 / M5 / M0 / M3", kde M5 vreteno vypne a M3 uz prijde
 #    BEZ S. Dekoder proto posledni videne S drzi v lastSpindleSpeed
@@ -295,53 +332,82 @@ tsp-2opt=true
 #    milisekundach zhaslo a cely job by se frezoval nastojato.
 #    Ten blok z pcb2gcode vypnout nejde, nom6 potlaci jen M6.
 #
-# 7) PREJEZDY V REZNE HLOUBCE  [NEVYRESENO, POZOR PRI OSTREM BEHU]
-#    pcb2gcode obcas spoji dve samostatne izolacni smycky primym
-#    G01 v hloubce zwork misto toho, aby zvedl na zsafe a prejel
-#    rychloposuvem. Na smiley.GTL jsou takove pohyby ctyri, nejdelsi
-#    ma 15.5 mm, a vedou pres mista, kde se rezat nema.
+# 7) PREJEZDY V REZNE HLOUBCE  [VYRESENO: backtrack=0]
+#    Symptom: pcb2gcode obcas spojil dve samostatne izolacni smycky
+#    primym G01 v hloubce zwork misto toho, aby zvedl na zsafe a prejel
+#    rychloposuvem. Na smiley.GTL byly takove pohyby ctyri, nejdelsi
+#    15.5 mm, a vedly pres mista, kde se rezat nema. Na sucho neskodne,
+#    na desce to je rylo tazene skrz med tam, kde ma zustat spoj.
 #
-#    Neni to nastavenim tohohle souboru. Overeno na:
+#    Drive se to hledalo mezi temihle volbami a ani jedna nepomohla:
 #      eulerian-paths=false            4 -> 3 pohyby, ten 15.5 mm zustal
 #      eulerian-paths+tsp-2opt=false   3 pohyby, zustal
 #      path-finding-limit=30           4 pohyby, zustal
 #      isolation-width=0.4 i 0.6       zustal (jen jinak dlouhy)
 #      optimise 0.00254 az 0.08 mm     zustal
 #
-#    NA SUCHO (bez desky) je to neskodne. NA DESCE to znamena rylo
-#    tazene skrz med tam, kde ma zustat spoj. Pred prvnim ostrym
-#    behem je potreba bud najit spravny prepinac v pcb2gcode, nebo
-#    si ty prejezdy odchytit v backendu a rozdelit je na
-#    zvednuti / rychloposuv / zajezd.
+#    Duvod, proc ani jedna nezabrala: vsechny resi PORADI a opakovani
+#    drah, ne vysku prejezdu. Spravna volba je backtrack (viz sekce
+#    optimalizace vyse), ktera ma vychozi hodnotu inf - tedy "prefrezuj
+#    cokoliv, kdyz to usetri cas". backtrack=0 to vypne.
+#
+#    OVERENI, ze uz tam zadny nezustal (skript traverse.py):
+#      python3 traverse.py front.gcode
+#    Hleda G01, ktery jede v Z=zwork delsi vzdalenost nez prah. Pozor,
+#    prah je potreba nastavit nad nejdelsi LEGITIMNI izolacni segment -
+#    dlouha rovna trasa ma dlouhy rovny obrys a ten je v poradku.
+#    S --fix out.gcode to umi i prepsat na zvednuti/rychloposuv/zajezd,
+#    coz je pojistka, kdyby se v nejake verzi backtrack choval jinak.
 #
 # 8) KOMPENZACE NAKLONU STOLU  [ZAPNUTA, SPAD + ANCHOR]
 #    Mechanicke vyrovnani z 8. 8. 2026 zbytkovy naklon neodstranilo.
 #    Test 13. - 15. 8. 2026 ukazal, ze korekce potreba je, a ze byla
-#    3x mensi, nez ma byt: mela rozpeti 0.15 mm, skutecny spad je 0.5 mm
-#    pres celou drahu X. V ose Y naklon zmeren nebyl zadny.
+#    mnohem mensi, nez ma byt: mela rozpeti 0.15 mm. Odhad z 15. 8. byl
+#    0.5 mm, premereni 16. 8. 2026 dalo ~1 mm pres celou drahu X - tedy
+#    skoro 7x vic, nez mela puvodni korekce.
+#
+#    V ose Y naklon nema STROJ, ale ma ho DESKA a kazda jinak posazena
+#    jinak. Konstantou se to netrefi, takze se v Y nekompenzuje vubec a
+#    misto toho se jede o klik hloubeji - viz cutZAtXMax nize. Az extrem
+#    to byt nesmi, hrot je V a kazda desetina navic rozsiri stopu
+#    (sirka = hrot + 2 * hloubka * tan(uhel/2)).
 #
 #    !!! PRIZNAK "NA MAX X TO NEREZE" NEROZLISI SPATNE ZNAMENKO
 #    !!! OD MOC MALEHO ROZPETI. Oboji vypada uplne stejne. Behem testu
 #    !!! se kvuli tomu ta dve cisla jednou zbytecne prohodila. Jedina
 #    !!! kontrola je dotek na obou koncich pri tiltEnabled = false.
 #
-#    ZMERENY STAV (15. 8. 2026): stul KLESA smerem k max X o 0.5 mm.
-#    Na X 3 je nejvys, na X 57 nejniz - tam hrot planda ve vzduchu.
+#    ZMERENY STAV (16. 8. 2026): stul KLESA smerem k max X o ~1 mm mereno
+#    pres celou drahu 0 az 60. Na X 3 je nejvys, na X 57 nejniz - tam hrot
+#    planda ve vzduchu. Mereno na oboustranne pasce, ne na klipech, takze
+#    to je vlastnost konstrukce, ne upnuti.
 #
 #    Korekce se proto od 15. 8. 2026 nezadava dvema absolutnimi Z, ale
 #    spadem a anchorem, protoze absolutni cisla neresila, ze anchor musi
 #    lezet na tom konci, kde se sazi nastroj:
-#        float tiltDrop    = 0.50f;   // o kolik stul klesne X 3 -> X 57
-#        float cutZAtXMax  = 1.10f;   // rezne Z na max X = 1.0 + kliky*0.1
-#    Vysledek: 1.10 na X 57, 1.35 uprostred, 1.60 na X 3. Vse nad
+#        float tiltDrop    = 1.00f;   // o kolik stul klesne X 3 -> X 57
+#        float cutZAtXMax  = 1.20f;   // rezne Z na max X = 1.0 + kliky*0.1
+#    Vysledek: 1.20 na X 57, 1.70 uprostred, 2.20 na X 3. Vse nad
 #    podlahou clampZ 0.9, viz sekce o ose Z vyse.
+#
+#    tiltDrop je zamerne 1.00 a ne 0.90. Zmereny 1 mm plati pres celych
+#    0 az 60, kdezto tiltDrop se vztahuje k pasmu 3 az 57, kam by striktne
+#    patrilo 54/60 * 1.0 = 0.90. Zustava 1.00, protoze o kousek hlubsi rez
+#    vadi min nez rez, ktery se na jednom konci desky nedotkne. Kdyby to na
+#    X min zabiralo uz moc, patri sem 0.90.
+#
+#    !!! KOREKCE ROVINY NEZACHRANI PROHYBAJICI SE STUL !!!
+#    Zmereno: stul z PLA se pod tlakem hrotu prohne az o 3 mm, bez zatizeni
+#    je rovny. Zadna korekce Z tohle neresi, protoze mereny stav neni ten,
+#    ktery nastane pri rezu. Prvni je vzdycky pridat tuhost - kus hliniku,
+#    skla nebo stare FR4 pres celou plochu, prisroubovany i uprostred, ne
+#    jen v rozich. Tuhost v ohybu roste s TRETI MOCNINOU tloustky, takze
+#    i par milimetru neceho tuheho tisteny stul prebije. Papir pod desku
+#    je krok spatnym smerem - je stlacitelny a tuhost jeste snizi.
 #
 #    Vyrovnat stul mechanicky je porad lepsi nez kompenzovat softwarem -
 #    korekce resi jen naklon roviny, ne prohnuti, a musi se premerit po
-#    kazdem zasahu do stolu. Deska je ted na oboustranne pasce, takze
-#    podlozit nizky konec par listy papiru je nejlacinejsi zpusob, jak
-#    spad zmensit; kazda desetina dolu je desetina, kterou nemusi honit
-#    software, a vzdali pasmo Z od te podlahy 0.9.
+#    kazdem zasahu do stolu.
 #
 #    JAK TO PREMERIT, at se to nemusi hadat: nastav tiltEnabled = false,
 #    najed hrotem na X 3 a sjed Z, dokud se nedotkne medi - zapis si Z.
@@ -367,15 +433,15 @@ tsp-2opt=true
 #                              na cely krok osy Z. Mimo pasmo se X orizne,
 #                              takze se nikdy neextrapoluje.
 #
-#    To zaokrouhleni je nutne. Sklon je 0.0093 mm Z na 1 mm X, takze na
-#    beznem segmentu (median 0.23 mm) vyjde zmena Z na necele polovine
-#    kroku a firmware ji orizne na nulu. Zmereno na ten.GBL jeste pri
-#    starem rozpeti 0.15 mm: bez zaokrouhleni chyba hloubky 0.040 mm
-#    (40 % rezu), se zaokrouhlenim prakticky nula. Pri 0.5 mm je ten
-#    rozdil umerne vetsi, premereno to nebylo.
+#    To zaokrouhleni je nutne. Sklon je 0.0185 mm Z na 1 mm X, takze na
+#    beznem segmentu (median 0.23 mm) vyjde zmena Z 0.0043 mm - porad pod
+#    jeden krok osy Z (0.005 mm) a firmware by ji orizl na nulu. Zmereno na
+#    ten.GBL jeste pri starem rozpeti 0.15 mm: bez zaokrouhleni chyba
+#    hloubky 0.040 mm (40 % rezu), se zaokrouhlenim prakticky nula. Pri
+#    1.0 mm je ten rozdil umerne vetsi, premereno to nebylo.
 #    Patri k tomu i "+ 0.5f" v moveZ() v nanoCode/src/main.cpp - jedno
 #    bez druheho nefunguje.
-
+#
 # 9) POMALY POSUV = PRESKOCENE OSY = "SKOK" NA DALSI BOD  [V FIRMWARE]
 #    Symptom z testu 13. - 15. 8. 2026: pri pomalem posuvu hrot dojede
 #    do bodu A, zavrta se, pohyb na B se neprovede, a nasledujici pohyb
@@ -429,3 +495,30 @@ tsp-2opt=true
 #      b) neprocitat pozici, kdyz se osa nerozjela - pod "if (freqX)".
 #         S bodem a) uz to nenastane, ale je to levna pojistka proti
 #         tomu, aby se chyba zase zacala tise hromadit.
+#
+#    !!! JE TENHLE FIX UZ V FIRMWARU, NEBO NE ?
+#    !!! Hlavicka rika "[V FIRMWARE]", ale text rika "opravit se to musi".
+#    !!! Cisla "po oprave" muzou byt merena i simulaci. Dokud to neni
+#    !!! jiste, plati, ze se pozice muze porad tise hromadit - a cast
+#    !!! poskozeni na desce pak neni ani mechanika, ani prejezdy.
+#    !!! Overeni: pust stejny G-kod dvakrat bez noveho nulovani. Kdyz
+#    !!! druhy prujezd nesedne do prvniho, fix tam neni.
+#
+# 10) POZICE SE VEDE V mm, NE V KROCICH  [NEOVERENO, ALE ZASADNI]
+#    move2D() zapisuje myToolHead.position = location, tedy ZADANOU
+#    souradnici, ne ujetou. Zaokrouhleni na cele kroky se tim po kazdem
+#    segmentu zahodi a chyba se scita jako nahodna prochazka.
+#    Simulace 2000 segmentu delky do 3 mm: drift az 2.7 mm.
+#
+#    Oprava je vest polohu v krocich a pocet kroku pohybu pocitat jako
+#    rozdil dvou absolutnich krokovych souradnic:
+#        cilSteps      = lround(stepLenghtGT2 * cilMM)
+#        maxStepX      = cilSteps - aktualniSteps
+#        aktualniSteps = cilSteps
+#    Zaokrouhleni pak probehne jednou pro kazdou absolutni souradnici
+#    a nema se co kumulovat - stejna simulace pak dava 0.06 mm a dal
+#    to neroste.
+#
+#    Vedlejsi efekt: pozice v krocich znamena celociselny protokol.
+#    Odpadne tim i to, ze %.4f v prepareForRPI() na AVR nefunguje -
+#    Arduino linkuje minimalni printf bez podpory floatu.
