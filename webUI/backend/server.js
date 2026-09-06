@@ -891,6 +891,42 @@ app.post("/home", async (req, res) => {
 })
 
 
+app.post("/emergency", async function (req, res) {
+    if (req.body.cmd === "Pause") {
+        sendEmergency(4)
+        setJobPaused(true)
+        res.json({
+            answer: "Pause sent"
+        })
+    }
+
+    else if (req.body.cmd === "Stop") {
+        sendEmergency(5)
+        // Tvrdy stop job zahazuje, continue uz ho nevzkrisi - odemknout jog.
+        // Pause naopak nechava job bezet, tam se stav nemeni.
+        setJobRunning(false)
+        res.json({
+            answer: "Stop sent"
+        })
+        jobArray.shift()
+    }
+    
+    else if (req.body.cmd === "Continue") {
+        sendEmergency(6)
+        setJobPaused(false)
+        res.json({
+            answer: "Continue sent"
+        })
+    }
+
+    else {
+        console.log("[JS] Unknown command")
+        res.json({
+            answer: "Unknown command"
+        })
+    }
+})
+
 
 app.post("/currentJobs", async (req, res) => {
     if (req.body.reason === "load") {

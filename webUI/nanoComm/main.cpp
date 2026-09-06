@@ -1313,6 +1313,7 @@ struct communicator {
     // v printer/millproject.
     float resumeSafeZ = 10.0f;
     bool started = false;
+    basicCMD lastCMD;
 
     communicator(fs::path port) {
         this->myUART = uartComm(port, 115200);
@@ -1345,6 +1346,20 @@ struct communicator {
         std::cout << "[SETUP] TCP communication initialized successfully." << std::endl;
 
         myUART.startComm();
+    }
+
+
+    void doCommandUntilNotCMD3() {
+        while (true) {
+            myUART.sendBasicCMD(lastCMD);
+            nanoReport curReport = myUART.listenUART();
+            myTCPUser.sendData(curReport);
+            std::cout << "Sending 1 cmd until it works" << std::endl;
+
+            if (curReport.error != 3) {
+                return;
+            }
+        }
     }
 
 
@@ -1386,6 +1401,10 @@ struct communicator {
                 started = false;
             }
 
+            else if (curReport.error == 3) {
+                doCommandUntilNotCMD3();
+            }
+
             else {
                 myTCPUser.sendData(nanoReport(1, 10));
                 return false;
@@ -1415,6 +1434,7 @@ struct communicator {
             std::cout << "[GCODE] Unsupported command encountered, skipping." << std::endl;
             myUART.sendBasicCMD(basicCMD(0, {-1,-1}, -1, -1));
         }
+        lastCMD = cmd;
         return true;
     }
 

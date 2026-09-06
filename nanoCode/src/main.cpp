@@ -12,12 +12,12 @@
 #define PULLEY_TEETH 16
 #define MAX_X 60
 #define MAX_Y 80
-#define MAX_Z 15
+#define MAX_Z 13
 #define MAX_SPEED 160
 #define SPINDL_PIN 11
 #define MINIMAL_DISTANCE_MM_X 3
 #define MINIMAL_DISTANCE_MM_Y 2
-#define MINIMAL_DISTANCE_MM_Z 1
+#define MINIMAL_DISTANCE_MM_Z 1.5
 #define MAX_ACC 150
 #define START_FREQ 100
 

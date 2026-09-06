@@ -134,6 +134,15 @@
                     <p id="jobName" class="job-name">No job is running</p>
                     <p id="jobLine" class="job-line">Line —</p>
                 </div>
+
+                <div id="jobResult" class="job-result" role="status" hidden>
+                    <span class="job-result-icon" aria-hidden="true"></span>
+                    <div class="job-result-body">
+                        <strong id="jobResultTitle">Job finished</strong>
+                        <small id="jobResultDetail">Waiting for the first result</small>
+                    </div>
+                    <button id="jobResultDismiss" class="job-result-dismiss" type="button" aria-label="Dismiss the job result">×</button>
+                </div>
             </section>
 
             <section class="panel emergency-panel" aria-labelledby="emergency-title">

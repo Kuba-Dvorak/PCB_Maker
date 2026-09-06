@@ -141,6 +141,82 @@ h2 { font-size: 1.1rem; letter-spacing: -0.01em; }
 
 .job-name { margin: 0; color: var(--text); font-size: .9rem; font-weight: 600; }
 .job-line { margin: 0; color: var(--muted); font-size: .86rem; font-variant-numeric: tabular-nums; }
+
+/* Vysledek dojeteho jobu. Konec jobu je udalost, ne stav - prijde v jedinem
+   reportu a hned ho prepise dalsi telemetrie. Proto to neni jen dalsi barva
+   proužku, ale samostatny panel, ktery zustane viset, dokud ho clovek
+   nezavre nebo dokud nezacne dalsi job. */
+.job-badge.job-done { color: var(--accent); }
+.job-badge.job-failed { color: var(--danger); }
+
+.job-result {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 14px;
+    padding: 12px 12px 12px 13px;
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: 0 10px 10px 0;
+    background: #101a2a;
+}
+
+.job-result[hidden] { display: none; }
+
+.job-result-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.job-result-body strong { color: var(--text); font-size: .92rem; }
+.job-result-body small { color: var(--muted); font-size: .82rem; line-height: 1.45; }
+
+.job-result-icon {
+    display: grid;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-size: .9rem;
+    font-weight: 700;
+}
+
+/* Znak je v CSS zamerne - JS pak prepina jedinou tridu a nemusi resit,
+   jaky symbol ke ktere variante patri. */
+.job-result-ok { border-left-color: var(--accent); }
+.job-result-ok .job-result-icon { color: var(--accent); background: #17a9ad1f; }
+.job-result-ok .job-result-icon::before { content: "\2713"; }
+.job-result-ok .job-result-body strong { color: #b3d5d1; }
+
+.job-result-bad { border-left-color: var(--danger); }
+.job-result-bad .job-result-icon { color: var(--danger); background: #f071781f; }
+.job-result-bad .job-result-icon::before { content: "\0021"; }
+.job-result-bad .job-result-body strong { color: #f3bcc0; }
+
+.job-result-dismiss {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    margin-left: auto;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1;
+    background: transparent;
+}
+
+.job-result-dismiss:hover { border-color: var(--muted); color: var(--text); }
+
+/* Kdyz job dobehne, clovek u stroje se zrovna divá jinam. Jedno bliknuti
+   pri objeveni panel zviditelni, dal uz nebliká, aby to nerusilo. */
+@media (prefers-reduced-motion: no-preference) {
+    .job-result { animation: job-result-in .32s ease-out; }
+}
+
+@keyframes job-result-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
 .upload-panel { grid-column: span 4; }
 .gcodes-panel { grid-column: span 8; }
 .panel-heading { justify-content: space-between; gap: 16px; margin-bottom: 20px; }
