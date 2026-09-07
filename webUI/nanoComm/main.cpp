@@ -1494,14 +1494,6 @@ struct communicator {
     // Odmitnout to uz tady usetri cely UART round-trip a hlavne se uzivatel
     // dozvi duvod, misto aby dostal zpatky jen odpoved na ping.
     void move(float x, float y, float z, float speed, float spindleSpeed) {
-        if (!homed) {
-            std::cout << "[TASK] Move refused, machine is not homed. Requested X=" << x
-                      << " Y=" << y << " Z=" << z << " speed=" << speed
-                      << " spindle=" << spindleSpeed << "." << std::endl;
-            myTCPUser.sendData(nanoReport(1, 3));
-            return;
-        }
-
         myUART.sendBasicCMD(basicCMD(8, {x, y}, z, speed, spindleSpeed));
         myTCPUser.sendData(myUART.listenUART());
     }
