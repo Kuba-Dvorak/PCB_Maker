@@ -34,7 +34,7 @@
         <div class="jogSteps">
         <p>Step Size</p>
         <input type="number" max="50" min="0" value="1" id="stepSize">
-        <svg id="stepSizeArrow">
+        <svg class="stepSizeArrow" id="stepSizeArrow" viewBox="0 0 200 200">
           <g
             id="layer1"
             transform="translate(-31.076741,-142.86744)">
@@ -163,7 +163,7 @@
       <div class="jogSpeed">
         <p>Speed Size</p>
         <input type="number" max="175" min="1" value="1" id="speedSize">
-        <svg id="speedSizeArrow">
+        <svg id="speedSizeArrow" viewBox="30 125 110 46" class="speedSizeArrow">
           <path id="gauge-ring"
                 d="M 35.35 157.35 A 50 50 0 0 1 135.35 157.35"
                 fill="none" stroke="#000000" stroke-width="2.5"/>
@@ -186,8 +186,15 @@
       <div class="jogSteps">
         <p>Spindle speed</p>
         <input type="number" max="20000" min="0" value="0" change="50" id="spindleSize">
-        <svg id="spindleSpeedArrow">
-           
+        <svg viewBox="55 168 100 92" class="spindleSizeArrow">
+          <path
+            style="fill:none;stroke:#000000;stroke-width:5;stroke-miterlimit:4.5"
+            id="path2"
+            d="M 69.585619,199.32833 A 40,40 0 0 1 113.69668,174.587 40,40 0 0 1 146.78574,212.83661 40,40 0 0 1 115.95335,252.92754 40,40 0 0 1 70.491223,230.76646" />
+          <path
+            style="fill:#000000;stroke:none"
+            id="path3"
+            d="m 60.397482,196.23312 7.069498,16.12005 14.691307,-15.04913 z" />
         </svg>
       </div>
       </div>
@@ -201,18 +208,29 @@
           <p><span class="telemetry-label-z">Z: </span><span id="telemetryZ" class="telemetry-value-z">0</span></p>
           <p><span class="telemetry-label-speed">Speed: </span><span id="telemetrySpeed" class="telemetry-value-speed">0</span></p>
           <p><span class="telemetry-label-spindle">Spindle: </span><span id="telemetrySpindle" class="telemetry-value-spindle">0</span></p>
-        </div>
+      </div>
+    </section>
+
+    <section class="endstops">
+      <div id="eX+">X+</div>
+      <div id="eX-">X-</div>
+      <div id="eY+">Y+</div>
+      <div id="eY-">Y-</div>
+      <div id="eZ+">Z+</div>
+      <div id="eZ-">Z-</div>
     </section>
   </section>
 
   <section class="jobGoingPart">
+    <div class="jobNameLabel">Job</div>
+    <div class="jobNameValue" id="jobName" default="No job yet">No job yet</div>
     <section class="jobButtons">
       <button>STOP</button>
       <button>CONTINUE</button>
       <button>PAUSE</button>
     </section>
     <section class="jobPicture">
-      <svg id="pictureJob"></svg>
+      <canvas id="pictureJob"></canvas>
     </section>
     <section class="jobETA">
       <div class="time-label">ETA: </div>
@@ -226,8 +244,9 @@
       <input class="jobInput" id="jobUpload" type="file" hidden>
       <div class="jobInputButton" id="jobUploadButton"></div>
     </section>
-    <section class="jobList" id="jobsListed">
-
+    <section class="jobList">
+      <div class="jobLabelUp">Uploaded jobs</div>
+      <div id="jobsListed">Nothings here yet</div>
     </section>
   </section>
 </body>
