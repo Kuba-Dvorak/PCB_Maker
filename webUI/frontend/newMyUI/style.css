@@ -1,84 +1,18 @@
 
+:root {
+    --bgColor: #8792c7;
+    --borderColor: #0a0b0f;
+    --buttonColor: #a8b0db;
+    --hoverColor: #263272;
+    --borderSize: .2rem;
+    --defaultPadding: .6rem;
+    --defaultRadius: .625rem;
+    --defaultSolid: solid;
+}
+
 .jogPart {
-    border: 1px solid black;
-    border-radius: 10px;
-    display: flex;
-    padding: 30px;
-}
-
-.jogButGrid {
-    border: 1px solid black;
-    border-radius: 10px;
-    display: flex;
-    padding: 10px;
-    background-color: #f0f1f6;
-}
-
-.jogPad {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    padding: 5px;
-    justify-items: space-around;
-    background-color: #efefef;
-}
-
-.jogPad button {
-    padding: 5px;
-    margin: 10px;
-    border-radius: 10px;
-    font-size: 20px;
-    aspect-ratio: 1/1;
-    background-color: #dccbff;
-    border: 1px solid rgb(42, 0, 34);
-}
-
-.jogPad button:hover {
-    background-color: #aa82ff;
-    transition: 0.2s;
-}
-
-.jogSpeeds {
-    border: 1px solid black;
-    border-radius: 10px;
-    display: flex;
-    padding: 10px;
-}
-
-.jogControlSpeed {
-    display: grid;
-    grid-template-rows: 1fr 1fr 1fr;
-    padding: 5px;
-    justify-items: space-around;
-    background-color: #efefef;
-}
-
-
-.jogModel {
-    border: 1px solid black;
-    border-radius: 10px;
-    display: flex;
-    padding: 10px;
-    margin: 10px;
-    position: relative;
-}
-
-
-.jogModelCanvas {
-    border: 1px solid black;
-    border-radius: 10px;
-    display: flex;
-    padding: 10px;
-}
-
-
-.telemetry {
-    position: absolute;
-    border: 1px solid black;
-    bottom: 10px;
-    right: 10px;
-    background-color: rgba(255, 255, 255, 0.8);
-    padding: 5px;
-    border-radius: 5px;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
+    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
+    border-color: var(--borderColor);
+    border-radius: var(--defaultRadius);
+    padding: var(--defaultPadding);
 }
