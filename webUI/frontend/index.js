@@ -31,6 +31,24 @@ const jobLineText = document.getElementById("jobLine")
 
 const jobCurrentList = document.getElementById("jobCurrentList")
 
+//visual stuff
+
+const 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Vsechno, cim jde strojem hnout rucne. Behem jobu se to zamyka, aby se
 // doprostred frezovani nedala poslat druha sada souradnic. Prekryv sam
 // o sobe nestaci - klavesnici by se na tlacitka poradu dalo dostat.
