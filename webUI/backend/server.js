@@ -192,6 +192,10 @@ connectSockets()
 
 
 let mainReader
+const jobArray = []
+const adminCode = "5369" 
+const currentAdmins = []
+const currentBannedUsers = []
 
 // Musi to byt stejny seznam jako gerberExtensions ve frontend/index.js.
 // Zamerne tu neni .txt, i kdyz nektere nastroje tak exportuji vrtani -
@@ -672,6 +676,43 @@ function readPrintedFlag(name) {
 }
 
 
+function checkUserPermission(owner, name) {
+    for (let i = 0; i < jobArray.length; i++) {
+        if (jobArray[i].name === name && jobArray[i].owner === owner) {
+            return true
+        }
+    }
+
+    return false
+}
+
+
+function checkUserBanned(user) {
+    for (let i = 0; i < currentBannedUsers.length; i++) {
+        if (currentBannedUsers[i] === owner) {
+            return true
+        }
+    }
+    return false
+}
+
+
+
+function checkUserAdmin(owner) {
+    for (let i = 0; i < currentAdmins.length; i++) {
+        if (currentAdmins[i] === owner) {
+            return true
+        }
+    }
+    return false
+}
+
+
+function jobArrayChangeOrder(index, newIndex) {
+
+}
+
+
 app.post("/printGcode", async (req, res) => {
     if (req.body.aprove !== 1) {
         console.log("[JS] Frontend made wrong gcode print request")
@@ -730,15 +771,9 @@ app.post("/printGcode", async (req, res) => {
 
     // Az tady, kdyz soubor opravdu existuje. Driv se cmd 3 poslalo hned
     // a Nano dostalo cestu k souboru, ktery jeste nevznikl.
-    sendCMD({
-        cmd: 3,
-        path: gcodePath
-    })
-
-    setJobRunning(true, name)
 
     res.json({
-        answer: "Print comming ahead"
+        answer: "Print addded to the queue"
     })
 })
 
@@ -856,7 +891,7 @@ app.post("/home", async (req, res) => {
 })
 
 
-app.post("/emergency", async (req, res) => {
+app.post("/emergency", async function (req, res) {
     if (req.body.cmd === "Pause") {
         sendEmergency(4)
         setJobPaused(true)
@@ -873,6 +908,7 @@ app.post("/emergency", async (req, res) => {
         res.json({
             answer: "Stop sent"
         })
+        jobArray.shift()
     }
     
     else if (req.body.cmd === "Continue") {
@@ -887,6 +923,133 @@ app.post("/emergency", async (req, res) => {
         console.log("[JS] Unknown command")
         res.json({
             answer: "Unknown command"
+        })
+    }
+})
+
+
+app.post("/currentJobs", async (req, res) => {
+    if (req.body.reason === "load") {
+        const index = req.body.index
+        if (index < 0 || index >= jobArray.length) {
+            res.json({
+                nextOne: false
+            })
+        }
+
+        else {
+            let youAreOwner = false
+            if (req.body.user === jobArray[index].owner) {
+                youAreOwner = true
+            }
+
+            res.json({
+                nextOne: true,
+                name: jobArray[index].name,
+                you: youAreOwner
+            })
+        }
+    }
+
+    else if (req.body.reason === "operate") {
+        if (!checkUserBanned(req.body.user)) {
+            if (req.body.cmd === "SpecialOp" && checkUserAdmin(req.body.user)) {
+            if (req.body.spcmd === "rearange") {
+                jobArrayChangeOrder(req.body.index, req.body.newIndex)
+                if (req.body.newIndex === 0) {
+                    sendEmergency(4)
+                    setJobPaused(true)
+                }
+            }
+            
+            else if (req.body.spcmd === "banUser") {
+                if (!checkUserAdmin(req.body.reqUser)) {
+                    currentBannedUsers.push(req.body.reqUser)
+                }
+            }
+        }
+
+        const name = req.body.jobName
+        if (name === jobArray[0].name) {
+            if (req.body.cmd === "Start") {
+                const gcodePath = path.join(gcodeDir, `${name}.gcode`)
+                sendCMD({
+                    cmd: 3,
+                    path: gcodePath
+                })
+
+                setJobRunning(true, name)
+                res.json({
+                    answer: `Print ${name} started`
+                })
+                return
+            }
+
+            if (checkUserPermission(req.body.user, req.body.jobName) || checkUserAdmin(req.body.user)) {
+                if (req.body.cmd === "Pause") {
+                    sendEmergency(4)
+                    setJobPaused(true)
+                    res.json({
+                        answer: "Pause sent"
+                    })
+                }
+
+                else if (req.body.cmd === "Stop") {
+                    sendEmergency(5)
+                    // Tvrdy stop job zahazuje, continue uz ho nevzkrisi - odemknout jog.
+                    // Pause naopak nechava job bezet, tam se stav nemeni.
+                    setJobRunning(false)
+                    res.json({
+                        answer: "Stop sent"
+                    })
+                    jobArray.shift()
+                }
+                
+                else if (req.body.cmd === "Continue") {
+                    sendEmergency(6)
+                    setJobPaused(false)
+                    res.json({
+                        answer: "Continue sent"
+                    })
+                }
+
+                else {
+                    console.log("[JS] Unknown command")
+                    res.json({
+                        answer: "Unknown command"
+                    })
+                }
+            }
+            
+            else {
+                res.json({
+                        answer: "Permission denied for this job, you are not the owner of this job"
+                })
+            }
+        }
+
+        else {
+            res.json({
+                answer: "You can only operate the first job in the queue"
+            })
+        }
+        }
+    }
+})
+
+
+
+app.post("/siteAdminAttepmt", async (req, res) => {
+    if (req.body.code === adminCode) {
+        currentAdmins.push(req.body.myName)
+        res.json({
+            permission: true
+        })
+    }
+    
+    else {
+        res.json({
+            permission: false
         })
     }
 })

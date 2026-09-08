@@ -12,12 +12,12 @@
 #define PULLEY_TEETH 16
 #define MAX_X 60
 #define MAX_Y 80
-#define MAX_Z 15
+#define MAX_Z 13
 #define MAX_SPEED 160
 #define SPINDL_PIN 11
 #define MINIMAL_DISTANCE_MM_X 3
 #define MINIMAL_DISTANCE_MM_Y 2
-#define MINIMAL_DISTANCE_MM_Z 1
+#define MINIMAL_DISTANCE_MM_Z 1.5
 #define MAX_ACC 150
 #define START_FREQ 100
 
@@ -802,12 +802,12 @@ struct cnc {
     }
 
     void clampLocation(Position &location) {
-        if (location.x > myCalib.maxX) {
+        if (location.x > myCalib.maxX + MINIMAL_DISTANCE_MM_X + .1) {
             location.x = myCalib.maxX;
             myCalib.currentError = 6;
         }
 
-        if (location.y > myCalib.maxY) {
+        if (location.y > myCalib.maxY + MINIMAL_DISTANCE_MM_Y + .1) {
             location.y = myCalib.maxY;
             myCalib.currentError = 6;
         }
@@ -824,7 +824,7 @@ struct cnc {
     }
 
     void clampZ(float &z) {
-        if (z > myCalib.maxZ) {
+        if (z > myCalib.maxZ + MINIMAL_DISTANCE_MM_Z + .1) {
             z = myCalib.maxZ;
             myCalib.currentError = 6;
         }
