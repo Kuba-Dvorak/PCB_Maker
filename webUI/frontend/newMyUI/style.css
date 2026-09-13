@@ -1,4 +1,3 @@
-
 :root {
     --backgroundColor: #5572e7;
     --partsDistances: 2rem;
@@ -8,6 +7,7 @@
     --borderColor: #0a0b0f;
     --borderSize: .2em;
     --defaultPadding: .6em;
+    --defaultMargin: 1em;
     --defaultRadius: .625em;
     --defaultSolid: solid;
     --maxWidth: 90%;
@@ -30,309 +30,337 @@
     --endstopRealeasedBorder: #00ff00;
     --endstopUndecided: #c8c8c8;
     --endstopUndecidedBorder: #000000;
+
+    --cardBGColor: #777676;
 }
 
-body {
+main {
     display: grid;
-    grid-template-columns: 1fr var(--rightPartWidth);
-    grid-template-rows: auto 1fr;
-    padding: var(--partsDistances);
+    grid-template-columns: auto var(--rightPartWidth);
+    grid-template-rows: auto auto;
+    margin: var(--defaultMargin);
+    gap: var(--partsDistances)
 }
 
-nav { grid-column: 1 / -1; }
-
+/* prvni level */
+.upNav {
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    position: sticky;
+    padding: var(--defaultPadding);
+    top: var(--defaultMargin);
+    z-index: 10;
+    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    background-color: var(--cardBGColor);
+}
 
 .jogPart {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
+    grid-row: 2;
     display: grid;
     grid-template-columns: auto auto auto;
-    padding: var(--partsDistances);
-    margin: var(--partsDistances);
-    gap: var(--partsDistances);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+    grid-template-rows: auto auto;
+    padding: var(--defaultMargin);
+    gap: var(--partsDistances)
 }
 
+
 .jobGoingPart {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    margin: var(--partsDistances);
     grid-row: 3;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto auto;
     gap: var(--partsDistances);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+    padding: var(--defaultPadding);
 }
 
 
 .jobListPart {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    margin: var(--partsDistances);
+    grid-column: 2;
+    grid-row: 2/4;
+    display: grid;
+    grid-template-rows: max-content auto;
     gap: var(--partsDistances);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+    position: sticky;
 }
 
-
-.jogName {
-    grid-column: 1 / -1;
-}
-
-.jobNameLabel {
-    grid-column: 1 / -1;
-}
-
-.jobNameValue {
-    grid-column: 1 / -1;
-}
-
+/*jog part*/
 
 .jogButGrid {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    width: max-content;
-    height: max-content;
-    padding: var(--partsDistances);
-    grid-column: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--partsDistances);
+    padding: var(--defaultMargin);
+    grid-row: 1;
+}
+
+.jogButGrid button {
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    border-radius: var(--defaultRadius);
 }
 
 .jogSpeeds {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
     padding: var(--defaultPadding);
-    grid-column: 1;
-    grid-row: 3;
-    display: flex;
-    flex-direction: column;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-
-.jogControlSpeed div {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: .5em;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-.jogControlSpeed div input {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    width: 2em;
-    height: 2em;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-.jogControlSpeed div svg {
-    display: flex;
-    width: 5em;
-    height: 4em;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-
-.jogModel {
-    padding: var(--defaultPadding);
-    position: relative;
-    grid-column: 3;
-    grid-row: 2/4;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
 }
 
 .endstops {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    grid-column: 2;
-    grid-row: 2;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    text-align: center; 
     gap: var(--partsDistances);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+    padding: var(--defaultMargin);
 }
 
-
-
-.endstopUndecided {
+.endstops div {
+    border: var(--endstopUndecidedBorder) dashed var(--borderSize);
+    border-radius: var(--defaultRadius);
     background-color: var(--endstopUndecided);
-    border: var(--borderSize) dashed var(--endstopUndecidedBorder);
-    border-color: var(--endstopUndecidedBorder);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
+    display: grid;
+    align-items: center;
     text-align: center;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+}
+
+.jogModel {
+    position: relative;
+    justify-items: center;
+    align-items: end;
+    margin: var(--defaultMargin);
+    grid-row: 1;
+    grid-column: 2/4;
+    min-width: max-content;
+    min-height: max-content;
+}
+
+.jogControlSpeed {
+    display: grid;
+    grid-template-rows: max-content content content;
+    justify-content: start;
 }
 
 
-.endstopPressed {
-    background-color: var(--endstopPressed);
-    border: var(--borderSize) var(--defaultSolid) var(--endstopPressedBorder);
-    border-color: var(--endstopPressedBorder);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    text-align: center;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-.endstopRealeased {
-    background-color: var(--endstopRealeased);
-    border: var(--borderSize) var(--defaultSolid) var(--endstopRealeasedBorder);
-    border-color: var(--endstopRealeasedBorder);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    text-align: center;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+.jogSteps {
+    display: grid;
+    grid-template-rows: auto;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--partsDistances);
+    margin: var(--defaultMargin);
+    max-height: fit-content;
+    justify-items: start;
+    align-items: center;
 }
 
 
-.jobButtons {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+.jogSpeed{
+    display: grid;
+    grid-template-rows: auto;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--partsDistances);
+    margin: var(--defaultMargin);
+    max-height: fit-content;
+    justify-items: start;
+    align-items: center;
+}
+
+
+.jogSpindle {
+    display: grid;
+    grid-template-rows: auto;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--partsDistances);
+    margin: var(--defaultMargin);
+    max-height: fit-content;
+    justify-items: start;
+    align-items: center;
+}
+
+
+
+
+/*job going part*/
+
+
+.jobNameLabel {
+    grid-row: 1;
+    margin: var(--defaultMargin);
+    display: grid;
+    grid-template-columns: auto auto;
 }
 
 
 .jobPicture {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    grid-row: 2;
+    grid-column: 2;
+}
+
+
+.jobPicture canvas {
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    max-width: 1460px;
+}
+
+
+.jobButtons {
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    border-radius: var(--defaultRadius);
+    grid-row: 2;
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: var(--partsDistances);
     padding: var(--defaultPadding);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
 }
 
 
 .jobETA {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
+    grid-row: 3;
     padding: var(--defaultPadding);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+    display: grid;
+    grid-template-columns: auto auto;
 }
 
 
-.jobInput {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
 
+/*job list part*/
 
 .jobListAdd {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
+    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    padding: var(--defaultMargin);
+    display: grid;
 }
 
-.jobList {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
+.jobListAdd button {
+    display: flex;
+    justify-content: center;
+    height: 75px;
 }
 
 
-.jogModelCanvas {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    width: 100%;
-    height: 100%;
+body[data-joblist="closed"] .jobListPart {
+  display: none;
 }
+
+
+
+
+/*model part*/
 
 .telemetry {
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
     position: absolute;
-    width: 200px;
-    right: 0px;
-    bottom: 0px;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-
-.jogPad {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    bottom: 12px;
+    right: 5px;
     padding: var(--defaultPadding);
-    max-width: content;
-    max-height: content;
-    font-size: 1rem;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-items: start;
+    align-items: center;
 }
 
-.jogPad Button {
-    background-color: var(--buttonColor);
-    color: var(--buttonTextColor);
-    border: var(--borderSize) var(--defaultSolid) var(--borderColor);
-    border-color: var(--borderColor);
+.jogModelCanvas {
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    width: 7rem;
-    height: 7rem;
-    max-width: var(--maxWidth);
-    max-height: var(--maxHeight);
-}
-
-
-.jogPad Button:hover {
-    background-color: var(--hoverColor);
-    transition: background-color 0.5s ease;
-}
-
-
-
-.spindleSizeArrow {
     width: 100%;
-    height: 100px;
-    max-width: 50px;
+    aspect-ratio: 2 / 1;
+    max-width: 1460px;
 }
 
-.speedSizeArrow {
-    width: 100%;
-    height: 100px;
-    max-width: 50px;
-}
 
-.stepSizeArrow {
-    width: 100%;
-    height: 100px;
-    max-width: 50px;
+
+
+/* mobil jiny*/
+
+
+@media (max-width: 800px) {
+    .jogModelCanvas{
+        display: none;
+    }
+
+    .jogPart {
+        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+        border-radius: var(--defaultRadius);
+        grid-row: 2;
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr 1fr 1fr;
+        padding: var(--defaultMargin);
+        gap: var(--partsDistances)
+    }
+
+    .jogButGrid {
+        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+        border-radius: var(--defaultRadius);
+        display: grid;
+        grid-row: 1;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: var(--partsDistances);
+        padding: var(--defaultMargin);
+    }
+
+    .jogSpeeds {
+        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+        border-radius: var(--defaultRadius);
+        padding: var(--defaultPadding);
+        grid-row: 2;
+    }
+
+    .endstops {
+        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+        border-radius: var(--defaultRadius);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        text-align: center; 
+        gap: var(--partsDistances);
+        padding: var(--defaultMargin);
+        grid-row: 3;
+    }
+
+    .jogModel {
+        justify-items: center;
+        align-items: end;
+        margin: var(--defaultMargin);
+        min-width: max-content;
+        min-height: max-content;
+        grid-row: 4;
+    }
+
+    .telemetry {
+        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+        border-radius: var(--defaultRadius);
+        padding: var(--defaultPadding);
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-items: start;
+        align-items: center;
+    }
+
+    body[data-joblist="open"] .jogPart {
+        display: none;
+    }
+
+    body[data-joblist="open"] .jobGoingPart {
+        display: none;
+    }
+
+    body[data-joblist="open"] .main {
+        display: grid;
+        grid-template-columns: auto;
+        margin: var(--defaultMargin);
+        gap: var(--partsDistances)
+    }
 }

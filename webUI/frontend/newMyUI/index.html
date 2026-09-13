@@ -7,240 +7,255 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <nav>
+  <nav class="upNav">
     <h1>CNC Control</h1>
+    <div class="errorPage">
+      <div>Error: </div>
+      <div id="error">0</div>
+      <div id="errorExplain"> (backend not connected)</div>
+    </div>
+    <div class="statusPage">
+      <div>Status: </div>
+      <div id="status">0</div>
+      <div id="statusExplain"> (backend not connected)</div>
+    </div>
     <button>Settings</button>
   </nav>
-  <section class="jogPart">
-    <div class="jogName">Jog</div>
-    <section class="jogButGrid">
-      <div class="jogPad">
-        <div></div>
-        <button>Y+</button>
-        <button>Z+</button>
 
-        <button>X-</button>
-        <button class="homeButton">home</button>
-        <button>X+</button>
+  <main>
+    <section class="jogPart">
+      <section class="jogButGrid">
+          <div></div>
+          <button>Y+</button>
+          <button>Z+</button>
 
-        <button>Z-</button>
-        <button>Y-</button>
-        <div></div>
+          <button>X-</button>
+          <button class="homeButton">home</button>
+          <button>X+</button>
+
+          <button>Z-</button>
+          <button>Y-</button>
+          <div></div>
+      </section>
+
+      <section class="jogModel">
+        <canvas id="jogModelCanvass" class="jogModelCanvas"></canvas>
+        <div class="telemetry">
+            <p><span class="telemetry-label-x">X: </span><span id="telemetryX" class="telemetry-value-x">0</span></p>
+            <p><span class="telemetry-label-y">Y: </span><span id="telemetryY" class="telemetry-value-y">0</span></p>
+            <p><span class="telemetry-label-z">Z: </span><span id="telemetryZ" class="telemetry-value-z">0</span></p>
+            <p><span class="telemetry-label-speed">Speed: </span><span id="telemetrySpeed" class="telemetry-value-speed">0</span></p>
+            <p><span class="telemetry-label-spindle">Spindle: </span><span id="telemetrySpindle" class="telemetry-value-spindle">0</span></p>
+        </div>
+      </section>
+
+      <section class="jogSpeeds">
+        <div class="jogName">Speeds</div>
+        <div class="jogControlSpeed">
+        <div class="jogSteps">
+          <p>Step Size</p>
+          <input type="number" max="50" min="0" value="1" id="stepSize">
+          <svg class="stepSizeArrow" id="stepSizeArrow" width="133" height="75" viewBox="0 0 133 5">
+            <g
+              id="layer1"
+              transform="translate(-31.076741,-142.86744)">
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect1"
+                width="131.48837"
+                height="22"
+                x="31.976744"
+                y="143.76744" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2"
+                width="0.89534879"
+                height="7.0348835"
+                x="36.965115"
+                y="143.76744" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6"
+                width="0.89534879"
+                height="7.0348835"
+                x="50.077419"
+                y="143.77499" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-2"
+                width="0.89534879"
+                height="7.0348835"
+                x="50.063217"
+                y="143.77348" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-2"
+                width="0.89534879"
+                height="7.0348835"
+                x="63.175522"
+                y="143.78104" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:2.07983;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-22"
+                width="0.61552161"
+                height="13.662033"
+                x="63.319458"
+                y="143.94064" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-9"
+                width="0.89534879"
+                height="7.0348835"
+                x="76.291847"
+                y="143.80829" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-29"
+                width="0.89534879"
+                height="7.0348835"
+                x="76.300621"
+                y="143.81726" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-1"
+                width="0.89534879"
+                height="7.0348835"
+                x="89.412926"
+                y="143.82481" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-4"
+                width="0.89534879"
+                height="7.0348835"
+                x="89.413544"
+                y="143.82094" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-0"
+                width="0.89534879"
+                height="7.0348835"
+                x="102.52584"
+                y="143.82849" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:2.07629;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-22-7"
+                width="0.61906278"
+                height="13.537667"
+                x="102.66434"
+                y="143.96385" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-29-5"
+                width="0.89534879"
+                height="7.0348835"
+                x="115.64727"
+                y="143.84224" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-4-9"
+                width="0.89534879"
+                height="7.0348835"
+                x="128.76019"
+                y="143.84592" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-0-7"
+                width="0.89534879"
+                height="7.0348835"
+                x="141.8725"
+                y="143.85347" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:2.07629;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-4-9-4"
+                width="0.61906278"
+                height="13.537667"
+                x="142.01077"
+                y="143.99695" />
+              <rect
+                style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-0-7-4"
+                width="0.89534879"
+                height="7.0348835"
+                x="154.98494"
+                y="143.86636" />
+            </g>
+          </svg>
+        </div>
+        <div class="jogSpeed">
+          <p>Speed Size</p>
+          <input type="number" max="175" min="1" value="1" id="speedSize">
+          <svg id="speedSizeArrow" viewBox="33 104 105 66" width="75" height="75" class="speedSizeArrow">
+            <path id="gauge-ring"
+                  d="M 35.35 157.35 A 50 50 0 0 1 135.35 157.35"
+                  fill="none" stroke="#000000" stroke-width="2.5"/>
+
+            <path d="M 44.59 157.35 A 40.5 40.5 0 0 1 125.59 157.35"
+                  fill="none" stroke="#cccccc" stroke-width="17"/>
+
+            <path id="gauge-fill"
+                  d="M 44.59 157.35 A 40.5 40.5 0 0 1 125.59 157.35"
+                  fill="none" stroke="#00f403" stroke-width="17"
+                  stroke-dasharray="0 200"/>
+
+            <polygon id="gauge-needle"
+                    points="85.09,129.35 82.09,157.35 88.09,157.35"
+                    fill="#000000"/>
+
+            <rect x="34.79" y="155.79" width="100.56" height="11.77" fill="#000000"/>
+          </svg>
+        </div>
+        <div class="jogSpindle">
+          <p>Spindle speed</p>
+          <input type="number" max="20000" min="0" value="0" change="50" id="spindleSize">
+          <svg viewBox="55 168 100 92" width="75" height="75" class="spindleSizeArrow">
+            <path
+              style="fill:none;stroke:#000000;stroke-width:5;stroke-miterlimit:4.5"
+              id="path2"
+              d="M 69.585619,199.32833 A 40,40 0 0 1 113.69668,174.587 40,40 0 0 1 146.78574,212.83661 40,40 0 0 1 115.95335,252.92754 40,40 0 0 1 70.491223,230.76646" />
+            <path
+              style="fill:#000000;stroke:none"
+              id="path3"
+              d="m 60.397482,196.23312 7.069498,16.12005 14.691307,-15.04913 z" />
+          </svg>
+        </div>
+        </div>
+      </section>
+
+      <section class="endstops">
+        <div id="eXF" class="endstopUndecided">X+</div>
+        <div id="eXB" class="endstopUndecided">X-</div>
+        <div id="eYF" class="endstopUndecided">Y+</div>
+        <div id="eYB" class="endstopUndecided">Y-</div>
+        <div id="eZF" class="endstopUndecided">Z+</div>
+        <div id="eZB" class="endstopUndecided">Z-</div>
+      </section>
+    </section>
+
+    <section class="jobGoingPart">
+      <div class="jobNameLabel">
+        <div>
+          Job
+        </div>
+        <div class="jobNameValue" id="jobName" default="No job yet">
+          No job yet
+        </div>
       </div>
-    </section>
-    <section class="jogSpeeds">
-      <div class="jogName">Speeds</div>
-      <div class="jogControlSpeed">
-      <div class="jogSteps">
-        <p>Step Size</p>
-        <input type="number" max="50" min="0" value="1" id="stepSize">
-        <svg class="stepSizeArrow" id="stepSizeArrow" viewBox="0 0 133.28836 23.800001">
-          <g
-            id="layer1"
-            transform="translate(-31.076741,-142.86744)">
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect1"
-              width="131.48837"
-              height="22"
-              x="31.976744"
-              y="143.76744" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2"
-              width="0.89534879"
-              height="7.0348835"
-              x="36.965115"
-              y="143.76744" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6"
-              width="0.89534879"
-              height="7.0348835"
-              x="50.077419"
-              y="143.77499" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-2"
-              width="0.89534879"
-              height="7.0348835"
-              x="50.063217"
-              y="143.77348" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6-2"
-              width="0.89534879"
-              height="7.0348835"
-              x="63.175522"
-              y="143.78104" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:2.07983;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-22"
-              width="0.61552161"
-              height="13.662033"
-              x="63.319458"
-              y="143.94064" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6-9"
-              width="0.89534879"
-              height="7.0348835"
-              x="76.291847"
-              y="143.80829" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-29"
-              width="0.89534879"
-              height="7.0348835"
-              x="76.300621"
-              y="143.81726" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6-1"
-              width="0.89534879"
-              height="7.0348835"
-              x="89.412926"
-              y="143.82481" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-4"
-              width="0.89534879"
-              height="7.0348835"
-              x="89.413544"
-              y="143.82094" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6-0"
-              width="0.89534879"
-              height="7.0348835"
-              x="102.52584"
-              y="143.82849" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:2.07629;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-22-7"
-              width="0.61906278"
-              height="13.537667"
-              x="102.66434"
-              y="143.96385" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-29-5"
-              width="0.89534879"
-              height="7.0348835"
-              x="115.64727"
-              y="143.84224" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-4-9"
-              width="0.89534879"
-              height="7.0348835"
-              x="128.76019"
-              y="143.84592" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6-0-7"
-              width="0.89534879"
-              height="7.0348835"
-              x="141.8725"
-              y="143.85347" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:2.07629;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-4-9-4"
-              width="0.61906278"
-              height="13.537667"
-              x="142.01077"
-              y="143.99695" />
-            <rect
-              style="fill:none;stroke:#000000;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
-              id="rect2-6-0-7-4"
-              width="0.89534879"
-              height="7.0348835"
-              x="154.98494"
-              y="143.86636" />
-          </g>
-        </svg>
-      </div>
-      <div class="jogSpeed">
-        <p>Speed Size</p>
-        <input type="number" max="175" min="1" value="1" id="speedSize">
-        <svg id="speedSizeArrow" viewBox="30 125 110 46" class="speedSizeArrow">
-          <path id="gauge-ring"
-                d="M 35.35 157.35 A 50 50 0 0 1 135.35 157.35"
-                fill="none" stroke="#000000" stroke-width="2.5"/>
-
-          <path d="M 44.59 157.35 A 40.5 40.5 0 0 1 125.59 157.35"
-                fill="none" stroke="#cccccc" stroke-width="17"/>
-
-          <path id="gauge-fill"
-                d="M 44.59 157.35 A 40.5 40.5 0 0 1 125.59 157.35"
-                fill="none" stroke="#00f403" stroke-width="17"
-                stroke-dasharray="0 200"/>
-
-          <polygon id="gauge-needle"
-                  points="85.09,129.35 82.09,157.35 88.09,157.35"
-                  fill="#000000"/>
-
-          <rect x="34.79" y="155.79" width="100.56" height="11.77" fill="#000000"/>
-        </svg>
-      </div>
-      <div class="jogSteps">
-        <p>Spindle speed</p>
-        <input type="number" max="20000" min="0" value="0" change="50" id="spindleSize">
-        <svg viewBox="55 168 100 92" class="spindleSizeArrow">
-          <path
-            style="fill:none;stroke:#000000;stroke-width:5;stroke-miterlimit:4.5"
-            id="path2"
-            d="M 69.585619,199.32833 A 40,40 0 0 1 113.69668,174.587 40,40 0 0 1 146.78574,212.83661 40,40 0 0 1 115.95335,252.92754 40,40 0 0 1 70.491223,230.76646" />
-          <path
-            style="fill:#000000;stroke:none"
-            id="path3"
-            d="m 60.397482,196.23312 7.069498,16.12005 14.691307,-15.04913 z" />
-        </svg>
-      </div>
-      </div>
+      <section class="jobPicture">
+        <canvas id="pictureJob"></canvas>
+      </section>
+      <section class="jobButtons">
+        <button id="stopButton">STOP</button>
+        <button id="pauseOrContinueButton">PAUSE</button>
+      </section>
+      <section class="jobETA">
+        <div class="time-label">ETA: </div>
+        <div class="time-value" id="etaValue">0:00</div>
+      </section>
     </section>
 
-    <section class="jogModel">
-      <canvas id="jogModelCanvass" class="jogModelCanvas" width="400" height="400"></canvas>
-      <div class="telemetry">
-          <p><span class="telemetry-label-x">X: </span><span id="telemetryX" class="telemetry-value-x">0</span></p>
-          <p><span class="telemetry-label-y">Y: </span><span id="telemetryY" class="telemetry-value-y">0</span></p>
-          <p><span class="telemetry-label-z">Z: </span><span id="telemetryZ" class="telemetry-value-z">0</span></p>
-          <p><span class="telemetry-label-speed">Speed: </span><span id="telemetrySpeed" class="telemetry-value-speed">0</span></p>
-          <p><span class="telemetry-label-spindle">Spindle: </span><span id="telemetrySpindle" class="telemetry-value-spindle">0</span></p>
-      </div>
-    </section>
-
-    <section class="endstops">
-      <div id="eXF" class="endstopUndecided">X+</div>
-      <div id="eXB" class="endstopUndecided">X-</div>
-      <div id="eYF" class="endstopUndecided">Y+</div>
-      <div id="eYB" class="endstopUndecided">Y-</div>
-      <div id="eZF" class="endstopUndecided">Z+</div>
-      <div id="eZB" class="endstopUndecided">Z-</div>
-    </section>
-  </section>
-
-  <section class="jobGoingPart">
-    <div class="jobNameLabel">Job</div>
-    <div class="jobNameValue" id="jobName" default="No job yet">No job yet</div>
-    <section class="jobButtons">
-      <button>STOP</button>
-      <button>CONTINUE</button>
-      <button>PAUSE</button>
-    </section>
-    <section class="jobPicture">
-      <canvas id="pictureJob"></canvas>
-    </section>
-    <section class="jobETA">
-      <div class="time-label">ETA: </div>
-      <div class="time-value" id="etaValue">0:00</div>
-    </section>
-  </section>
-
-  <section class="jobListPart">
+    <section class="jobListPart">
     <section class="jobListAdd">
-      <label for="jobUpload" class="">Hledej</label>
+      <label for="jobUpload" class="">Click to upload gerber</label>
       <input class="jobInput" id="jobUpload" type="file" hidden>
       <div class="jobInputButton" id="jobUploadButton"></div>
     </section>
@@ -249,5 +264,9 @@
       <div id="jobsListed">Nothings here yet</div>
     </section>
   </section>
+  </main>
+  <script>
+    document.body.dataset.joblist = 'open';
+  </script>
 </body>
 </html>

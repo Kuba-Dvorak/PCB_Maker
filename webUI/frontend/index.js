@@ -33,7 +33,7 @@ const jobCurrentList = document.getElementById("jobCurrentList")
 
 //visual stuff
 
-const 
+
 
 
 
