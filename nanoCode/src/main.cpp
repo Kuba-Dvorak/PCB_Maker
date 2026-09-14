@@ -12,8 +12,9 @@
 #define PULLEY_TEETH 16
 #define MAX_X 60
 #define MAX_Y 80
-#define MAX_Z 13
+#define MAX_Z 8
 #define MAX_SPEED 160
+#define MAX_SPEED_Z 8
 #define SPINDL_PIN 11
 #define MINIMAL_DISTANCE_MM_X 3
 #define MINIMAL_DISTANCE_MM_Y 2
@@ -160,7 +161,7 @@ struct calibration {
     volatile uint8_t currentEndstopsError;
     volatile uint8_t ignoreEndstop;
     
-    calibration(float maxAcc = MAX_ACC,uint16_t maxSpeedX = MAX_SPEED, uint16_t maxSpeedY = MAX_SPEED, uint16_t maxSpeedZ = MAX_SPEED,
+    calibration(float maxAcc = MAX_ACC,uint16_t maxSpeedX = MAX_SPEED, uint16_t maxSpeedY = MAX_SPEED, uint16_t maxSpeedZ = MAX_SPEED_Z,
                 uint8_t pulleyNumTeeth = PULLEY_TEETH, uint8_t jumperDown = JUMPER, uint8_t leadT8 = LEAD_T8, uint8_t maxX = MAX_X, uint8_t maxY = MAX_Y, uint8_t maxZ = MAX_Z) {
         this->maxSpeedX = maxSpeedX;
         this->maxSpeedY = maxSpeedY;
@@ -765,7 +766,7 @@ struct cnc {
             digitalWrite(myCalib.motorZ.dirPin, LOW);
         }
 
-        int freqZ = int(15 * myCalib.stepLenghtT8) / 2;
+        int freqZ = int((MAX_SPEED_Z/2) * myCalib.stepLenghtT8) / 2;
         int freqXY = int(MAX_SPEED * myCalib.stepLenghtGT2) / 2;
 
         myCalib.setupFreqZ(freqZ);
@@ -1019,7 +1020,7 @@ struct cnc {
 
         int freqZ;
 
-        if (myToolHead.speed >= 20) {
+        if (myToolHead.speed >= MAX_SPEED_Z) {
             freqZ = int(20 * myCalib.stepLenghtT8);
         }
         else {
