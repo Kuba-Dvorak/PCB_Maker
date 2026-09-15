@@ -83,9 +83,11 @@ main > *,
     --buttonBorderColor: #0a0b0f;
     --buttonTransition: .15s;
 
-    /* Jak daleko doroste vlna pod kurzorem. Pocita se z rozmeru tlacitka,
-       takze 320 % pokryje i protejsi roh - viz komentar u ::before. */
-    --buttonHoverReach: 320%;
+    /* Sila cary v ikonach. V em, takze jde s velikosti textu vedle ni.
+       non-scaling-stroke k tomu zaridi, ze se bere jako pixely na
+       obrazovce a ne jako jednotky viewBoxu - bez toho ma vetsi ikona
+       silnejsi caru, i kdyz stoji u stejne velkeho textu. */
+    --iconStroke: .11em;
 
     /* --- sipky u policek rychlosti --------------------------------------
        Vlastni sada, zamerne oddelena od tlacitek: sipky nemaji pozadi ani
@@ -99,7 +101,7 @@ main > *,
 
     --buttonColor: #182449;
     --buttonTextColor: #9EB1FF;
-    --hoverColor: #304384;
+    --hoverColor: #5B5BD6;
     --buttonMinimalSize: 7em;
     --buttonMaximalSize: 15em;
     
@@ -168,6 +170,8 @@ main > *,
     --unknownColorText: #a08921;
     --badColorText: #6f1b1b;
     --okColorText: #004211;
+
+    --bgImage: url('./backgrounds-default/ComplexGraph.png');
 }
 
 /* ======================================================================
@@ -346,8 +350,6 @@ main {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     overflow-y: auto;
-    /* Pozadi se kresli pod padding, ale NE pod margin. S marginem byl kolem
-       obrazku pruh hole --bgColor, takhle sahá obrazek az ke kraji. */
     margin: 0;
     padding: var(--defaultMargin);
     gap: var(--partsDistances)
@@ -627,53 +629,54 @@ body[data-joblist="closed"] .jobListPart { display: none; }
 
 .errorPage div {
     display: block;
-    color: var(--unknownColorText);
+    color: inherit;
     font-size: large;
 }
 
 .statusPage div {
     display: block;
-    color: var(--unknownColorText);
+    color: inherit;
     font-size: large;
 }
 
 
-.lucide-circle-question-mark {
+/* --- stavy erroru a statusu --------------------------------------------
+   Jedna trida na bunce ridi pozadi, ramecek, barvu textu i to, ktery ze tri
+   symbolu je videt. JS tedy nesaha na styly, jen prehodi tridu.
+
+   Vybirano pres [class*="circle-x"] a ne pres presny nazev, aby to platilo
+   i na varianty s dvojkou na konci, ktere mas u statusu.
+   ----------------------------------------------------------------------- */
+
+/* Vychozi je vsechno schovane, odkryje az stavova trida. */
+.errorPage [class*="circle-"],
+.statusPage [class*="circle-"] { display: none; }
+
+.stateUnknown [class*="circle-question-mark"],
+.stateOk [class*="circle-check"],
+.stateBad [class*="circle-x"] { display: block; }
+
+.errorPage.stateUnknown,
+.statusPage.stateUnknown {
+    border-color: var(--unknownColorText);
     color: var(--unknownColorText);
+    background-color: var(--unknownColor);
 }
 
-
-.lucide-circle-x {
-    color: var(--badColorText);
-    display: none;
-    width: 0%;
-}
-
-
-.lucide-circle-check {
+.errorPage.stateOk,
+.statusPage.stateOk {
+    border-color: var(--okColorText);
     color: var(--okColorText);
-    display: none;
-    width: 0%;
+    background-color: var(--okColor);
 }
 
-
-.lucide-circle-question-mark2 {
-    color: var(--unknownColorText);
-}
-
-
-.lucide-circle-x2 {
+.errorPage.stateBad,
+.statusPage.stateBad {
+    border-color: var(--badColorText);
     color: var(--badColorText);
-    display: none;
-    width: 0%;
+    background-color: var(--badColor);
 }
 
-
-.lucide-circle-check2 {
-    color: var(--okColorText);
-    display: none;
-    width: 0%;
-}
 
 
 /*model part*/
@@ -921,6 +924,7 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     display: flex;
     flex-wrap: wrap;
     gap: var(--partsDistances);
+    align-items: center;
     justify-content: center;
     justify-self: center;
 }
@@ -1177,18 +1181,15 @@ canvas { display: block; }
 
 /* ======================================================================
    PRECHODY TLACITEK
-   Netyka se uploadu, prepinace seznamu a nastaveni - ty maji vlastni
-   chovani (upload je <label>, ty dve v navu jen zvetsuji ikonu).
+   Obycejny prolinaci prechod pozadi. Drive tu byla vlna vyrustajici z mista,
+   kde mys do tlacitka vjela - vypadala efektne, ale pri rychlem prejizdeni
+   panelu z ni bylo neklidno, tak je pryc i s obsluhou v script.js.
+   Netyka se prepinace seznamu, nastaveni a sipek u policek - ty maji
+   vlastni chovani.
    ====================================================================== */
 
 button:not(.JobsBut, .settingBut, .stepArrow),
 .jobListAdd label {
-    position: relative;
-    overflow: hidden;
-    /* Vlastni stacking kontext: bez nej by ::before se zapornym z-indexem
-       propadlo az za pozadi tlacitka a nebylo videt. S nim se kresli nad
-       pozadim, ale porad pod popiskem. */
-    isolation: isolate;
     color: var(--buttonTextColor);
     border-color: var(--buttonBorderColor);
     background-color: var(--buttonColor);
@@ -1198,60 +1199,16 @@ button:not(.JobsBut, .settingBut, .stepArrow),
         background-color var(--buttonTransition) ease;
 }
 
+.jobListAdd label { background-color: var(--cardBGColor); }
 
-.jobListAdd label {
-    position: relative;
-    overflow: hidden;
-    /* Vlastni stacking kontext: bez nej by ::before se zapornym z-indexem
-       propadlo az za pozadi tlacitka a nebylo videt. S nim se kresli nad
-       pozadim, ale porad pod popiskem. */
-    isolation: isolate;
-    color: var(--buttonTextColor);
-    border-color: var(--buttonBorderColor);
-    background-color: var(--cardBGColor);
-    transition:
-        color var(--buttonTransition) ease,
-        border-color var(--buttonTransition) ease,
-        background-color var(--buttonTransition) ease;
-}
-
-/* Vlna hover pozadi vyrusta z mista, kde mys do tlacitka vstoupila.
-   Souradnice dodava script.js do --pointerX / --pointerY; kdyz JS nebezi,
-   nebo se tlacitko vybere z klavesnice, spadne to na stred. */
-button:not(.JobsBut, .settingBut, .stepArrow)::before,
-.jobListAdd label::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    left: var(--pointerX, 50%);
-    top: var(--pointerY, 50%);
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background-color: var(--hoverColor);
-    transform: translate(-50%, -50%);
-    transition:
-        width var(--buttonTransition) ease-out,
-        height var(--buttonTransition) ease-out;
-}
-
-/* Kdyz vlna vyrusta z rohu, musi mit k protejsimu rohu jeste dost.
-   Pri 250 % to nestacilo: polomery jsou 1.25x sirka a 1.25x vyska, a
-   protejsi roh lezi na (1/1.25)^2 + (1/1.25)^2 = 1.28, tedy ven z elipsy.
-   Pri 320 % vyjde 0.39 + 0.39 = 0.78, takze se tam vejde i u tlacitka
-   libovolneho pomeru stran. Prebytek stejne orizne overflow: hidden. */
-button:not(.JobsBut, .settingBut, .stepArrow):hover::before,
-.jobListAdd label:hover::before,
-button:not(.JobsBut, .settingBut, .stepArrow):focus-visible::before,
-.jobListAdd label:focus-visible::before {
-    width: var(--buttonHoverReach);
-    height: var(--buttonHoverReach);
-}
+button:not(.JobsBut, .settingBut, .stepArrow):hover,
+button:not(.JobsBut, .settingBut, .stepArrow):focus-visible,
+.jobListAdd label:hover,
+.jobListAdd label:focus-visible { background-color: var(--hoverColor); }
 
 @media (prefers-reduced-motion: reduce) {
     button:not(.JobsBut, .settingBut, .stepArrow),
-    button:not(.JobsBut, .settingBut, .stepArrow)::before,
-.jobListAdd label::before { transition: none; }
+    .jobListAdd label { transition: none; }
 }
 
 /* ======================================================================
@@ -1407,9 +1364,16 @@ textarea { font-family: inherit; }
 .numberField { color: var(--fieldTextColor); }
 .numberField input[type="number"] { color: var(--fieldTextColor); }
 
-/* Symbol v nadpisu endstopu. */
-.endstopName [class*="lucide"],
+/* Symbol v nadpisu endstopu. Kresba je vyplnena, ne tazena, takze bere
+   barvu pres fill="currentColor" a sila cary se ji netyka. Velikost drzi
+   vyska pisma nadpisu, stejne jako u loga v liste. */
 .endstopName svg { color: var(--endstopSymbolColor); }
+
+.endstopName .leverIcon {
+    width: auto;
+    height: 1.4em;
+    flex: 0 0 auto;
+}
 
 /* Obrazky u rychlosti. Kresby uvnitr jsou na currentColor, takze staci
    nastavit barvu samotnemu SVG - a JS ji muze kdykoliv prepsat podle
@@ -1490,3 +1454,140 @@ textarea { font-family: inherit; }
    tu nic neprepisuje - obecna pravidla pro tlacitka plati i na nej.
    Zbyva jen kurzor, ten <label> sam od sebe nema. */
 .jobListAdd label { cursor: pointer; }
+
+/* --- nav: error a status ------------------------------------------------
+   Byly to dva nejvetsi kusy cele listy, prestoze nesou dve cisla. Mensi
+   symbol, mensi pismo a odsazeni od horni hrany.
+   ----------------------------------------------------------------------- */
+.errorPage,
+.statusPage {
+    /* Stejny margin nahore i dole: bunka zustane v listе vycentrovana a
+       zaroven se nedotyka jejich hran. Jen margin-top ji z osy vytlacil. */
+    margin-block: var(--defaultMargin);
+    padding: var(--defaultPadding) var(--defaultMargin);
+    gap: var(--defaultPadding);
+}
+
+.errorPage div,
+.statusPage div { font-size: .95rem; }
+
+#errorSymbol [class*="lucide"],
+#statusSymbol [class*="lucide"] {
+    width: 42px;
+    height: 42px;
+}
+
+@media (max-width: 800px) {
+    /* Jeden radek: nadpis, dvojice, tlacitka. Na 320 px se do nej vejde
+       jen tehdy, kdyz vysvetlivka v zavorce zmizi a symboly se zmensi -
+       samotne cislo erroru a statusu je to, co ma byt videt na prvni pohled. */
+    /* Nadpis je ta pruzna cast: dvojice i tlacitka dostanou, co potrebuji,
+       a co zbude, pripadne jemu. Bez minmax(0,...) by se nesmrskl pod svuj
+       text a vsechno by se prekryvalo. */
+    .upNav {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: var(--defaultPadding);
+    }
+
+    .upNav h1 {
+        grid-area: auto;
+        font-size: 1.05rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Ikony navu jsou na telefonu terc palce, ne ozdoba - staci mensi. */
+    .navButtons [class*="lucide"] {
+        width: 22px;
+        height: 22px;
+        height: 22px;
+    }
+
+    .navInfo {
+        grid-area: auto;
+        gap: var(--defaultPadding);
+        flex-wrap: nowrap;
+    }
+
+    /* Obe bunky stejne siroke a smi se zuzit - popis se pak zalomi misto
+       toho, aby roztahl nav. Mensi margin: na telefonu je 16 px nahore
+       i dole proti 75px bunce zbytecne moc. */
+    .errorPage,
+    .statusPage {
+        flex: 1 1 0;
+        min-width: 0;
+        margin-block: var(--defaultPadding);
+    }
+
+    .navButtons {
+        grid-area: auto;
+        padding-inline: 0;
+        gap: var(--defaultPadding);
+    }
+
+    /* Nadpis na telefonu mizi - clovek vi, jakou stranku si otevrel, kdezto
+       "(backend not connected)" je jedina veta, ktera mu rekne, co se deje.
+       Uvolnene misto jde na popis chyby. */
+    .upNav h1 { display: none; }
+
+    #errorSymbol [class*="lucide"],
+    #statusSymbol [class*="lucide"] {
+        width: 20px;
+        height: 20px;
+    }
+
+    .errorPage,
+    .statusPage {
+        padding: 2px 6px;
+        gap: 4px;
+    }
+
+    .errorPage div,
+    .statusPage div { font-size: .75rem; }
+}
+
+@media (max-width: 420px) {
+    /* Na uzkych telefonech uz se slova pred dvojteckou nevejdou. Cislo
+       zustava a co znamena, rekne symbol vedle nej. */
+    .errorPage span:not([id]),
+    .statusPage span:not([id]) { display: none; }
+}
+
+/* h3 uvnitr ma vlastni vychozi margin (1em nahore i dole), ktery bunce
+   pridaval 36 px vysky navic - proto byly tak velke. */
+.errorPage h3,
+.statusPage h3 { margin: 0; }
+
+/* --- logo v nadpisu -----------------------------------------------------
+   SVG ma v atributech 512pt (~683 px) a fill natvrdo, takze prislo obrovske
+   a cerne. Velikost drzi vyska pisma nadpisu, barvu dedi po nem.
+   ----------------------------------------------------------------------- */
+.upNav h1 {
+    display: flex;
+    gap: var(--defaultPadding);
+    align-items: center;
+    margin-inline: var(--defaultPadding);
+}
+
+.upNav h1 svg {
+    width: auto;
+    /* 1.75em vyska nadpisu vyjde na 56 px, tedy presne na velikost ikon
+       v tlacitkach vpravo. */
+    height: 1.75em;
+    color: var(--textColor);
+    flex: 0 0 auto;
+}
+
+/* Sila cary v ikonach na jednom miste. Kresby u rychlosti (pravitko,
+   tachometr, vreteno) zamerne vyjmute - ty maji vlastni tloustky, ktere
+   jsou soucasti kresby. */
+[class*="lucide"] * {
+    vector-effect: non-scaling-stroke;
+    stroke-width: var(--iconStroke);
+}
+
+/* Tlacitka v navu zadny text nemaji, takze "podle textu vedle" pro ne nedava
+   smysl - jejich pismo je vychozich 13 px, z cehoz by u 56px ikony vysla
+   nitka. Dostavaji proto pevnou hodnotu odpovidajici jejich velikosti. */
+.navButtons { --iconStroke: 2.4px; }

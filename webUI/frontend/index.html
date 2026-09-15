@@ -1,199 +1,437 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#111827">
-    <title>CNC control panel</title>
-    <link rel="stylesheet" href="./index.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap" rel="stylesheet">
+
 </head>
 <body>
-    <main class="app-shell">
-        <header class="topbar">
-            <div class="brand">
-                <span class="brand-mark" aria-hidden="true">C</span>
-                <div>
-                    <p class="eyebrow">PCB Maker</p>
-                    <h1>CNC Control Panel</h1>
-                </div>
-            </div>
-            <div class="connection-indicator">
-                <span class="status-dot" aria-hidden="true"></span>
-                <span>Machine monitor</span>
-            </div>
-        </header>
+  <nav class="upNav">
+    <h1>
+      <svg version="1.0" xmlns="http://www.w3.org/2000/svg"
+            width="512pt" height="512pt" viewBox="0 0 512 512"
+            preserveAspectRatio="xMidYMid meet">
 
-        <section class="dashboard-grid" aria-label="CNC dashboard">
-            <section class="panel motion-panel" id="motionPanel" aria-labelledby="motion-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Manual control</p>
-                        <h2 id="motion-title">Movement</h2>
-                    </div>
-                    <span class="panel-badge">Jog</span>
-                </div>
+            <g transform="translate(0,512) scale(0.1,-0.1)"
+            fill="currentColor" stroke="none">
+            <path d="M957 5059 c-87 -21 -154 -74 -198 -159 -23 -43 -24 -55 -24 -235 0
+            -188 0 -191 28 -247 53 -109 140 -158 279 -158 l78 0 0 -110 0 -110 -37 0
+            c-73 -1 -149 -51 -173 -115 -16 -41 -14 -118 4 -152 19 -37 64 -79 99 -92 16
+            -6 71 -11 123 -11 l94 0 0 -150 c0 -163 5 -183 57 -232 15 -15 49 -32 75 -38
+            l47 -12 3 -225 c3 -209 4 -226 22 -239 31 -22 82 -18 100 8 13 19 16 59 16
+            239 l0 217 38 7 c52 9 97 40 124 83 21 34 23 51 27 190 l3 152 96 0 c83 0 100
+            3 138 25 161 95 92 345 -96 345 l-40 0 0 110 0 110 433 0 433 0 153 -160 153
+            -160 144 0 144 0 -2 -937 -3 -938 -497 -3 -498 -2 0 299 0 300 -27 20 c-26 21
+            -28 21 -800 19 l-775 -3 -19 -24 c-18 -22 -19 -43 -19 -317 l0 -294 -219 0
+            -220 0 -20 -26 c-20 -26 -21 -38 -21 -334 0 -296 1 -308 21 -334 l20 -26 200
+            0 199 0 0 -619 c0 -594 1 -620 19 -642 l19 -24 1902 0 1902 0 19 24 c18 22 19
+            48 19 642 l0 619 199 0 200 0 20 26 c20 26 21 38 21 334 0 296 -1 308 -21 334
+            l-20 26 -375 0 -374 0 0 940 0 940 108 0 c86 0 116 4 152 21 55 25 105 71 133
+            124 21 39 22 53 25 398 3 401 1 420 -63 495 -19 22 -56 51 -83 64 l-47 23
+            -1690 2 c-965 0 -1706 -3 -1728 -8z m3398 -143 c19 -8 44 -30 55 -48 19 -31
+            20 -50 20 -361 0 -284 -2 -334 -16 -363 -32 -66 -6 -64 -708 -64 l-634 0 -151
+            158 -151 157 -904 5 c-895 5 -905 5 -933 26 -53 39 -63 74 -63 232 0 154 8
+            189 52 230 14 13 38 27 54 32 16 4 775 9 1687 9 1421 1 1663 -1 1692 -13z
+            m-2655 -766 l0 -110 -220 0 -220 0 0 110 0 110 220 0 220 0 0 -110z m2310
+            -1150 l0 -940 -285 0 -285 0 0 940 0 940 285 0 285 0 0 -940z m-2096 884 c19
+            -18 20 -28 6 -55 -10 -18 -26 -19 -433 -19 -232 0 -427 4 -433 8 -19 13 -23
+            39 -8 61 15 21 19 21 434 21 367 0 421 -2 434 -16z m-316 -345 c3 -159 3 -159
+            -113 -159 -46 0 -90 3 -99 6 -14 5 -16 28 -16 145 l0 140 113 -3 112 -3 3
+            -126z m562 -1229 l0 -250 -680 0 -680 0 0 250 0 250 680 0 680 0 0 -250z
+            m2640 -610 l0 -220 -2240 0 -2240 0 0 220 0 220 2240 0 2240 0 0 -220z m-440
+            -935 l0 -575 -1800 0 -1800 0 0 575 0 575 1800 0 1800 0 0 -575z"/>
+            <path d="M1395 1198 c-178 -34 -327 -189 -357 -373 -32 -190 71 -384 249 -472
+            68 -34 85 -38 172 -41 112 -5 190 16 277 74 196 130 253 413 124 612 -67 104
+            -165 171 -289 198 -74 15 -104 16 -176 2z m210 -157 c59 -26 122 -86 153 -145
+            23 -44 27 -63 27 -141 0 -74 -4 -97 -23 -132 -35 -67 -79 -110 -144 -143 -153
+            -76 -344 -9 -414 145 -49 107 -40 214 24 307 41 58 118 111 186 127 54 13 139
+            5 191 -18z"/>
+            <path d="M2855 946 c-124 -55 -161 -221 -72 -323 85 -96 229 -96 314 0 116
+            132 21 338 -156 337 -31 -1 -69 -7 -86 -14z m139 -148 c51 -72 -49 -151 -103
+            -82 -12 15 -21 35 -21 45 0 54 93 81 124 37z"/>
+            <path d="M3355 944 c-76 -39 -116 -105 -116 -189 0 -127 97 -214 226 -203 63
+            5 113 35 153 92 23 34 27 49 27 112 0 64 -3 77 -30 116 -43 61 -95 88 -170 88
+            -35 0 -73 -7 -90 -16z m137 -141 c40 -36 8 -113 -49 -113 -55 0 -85 70 -46
+            112 20 22 70 23 95 1z"/>
+            <path d="M3855 943 c-81 -42 -121 -115 -113 -208 16 -189 262 -253 373 -97 23
+            34 30 56 33 106 6 91 -31 156 -110 197 -46 24 -140 25 -183 2z m137 -140 c22
+            -20 23 -70 1 -95 -36 -40 -113 -8 -113 49 0 55 70 85 112 46z"/>
+            <path d="M1040 3270 c-12 -12 -20 -33 -20 -52 0 -26 14 -45 83 -115 69 -68 89
+            -83 114 -83 35 0 73 38 73 73 0 13 -34 55 -88 109 -95 95 -123 107 -162 68z"/>
+            <path d="M1763 3207 c-74 -74 -83 -87 -83 -120 0 -40 27 -67 69 -67 32 0 201
+            166 201 197 0 35 -38 73 -73 73 -25 0 -45 -15 -114 -83z"/>
+            <path d="M894 2886 c-48 -21 -54 -89 -10 -118 6 -4 66 -8 134 -8 109 0 124 2
+            142 20 37 37 21 91 -31 109 -44 15 -197 13 -235 -3z"/>
+            <path d="M1840 2893 c-32 -12 -50 -37 -50 -68 0 -57 20 -65 163 -65 119 0 127
+            1 141 22 21 30 20 61 -3 89 -17 22 -27 24 -127 26 -60 1 -116 0 -124 -4z"/>
+            </g>
+      </svg>
+      <span>CNC Control</span>
+    </h1>
+    <div class="navInfo">
+    <div class="errorPage stateUnknown" id="errorPage">
+      <div>
+        <div>
+          <h3>Error:  <span id="error">0</span></h3>
+        </div>
+        <div id="errorExplain"> (backend not connected)</div>
+      </div>
+      <span id="errorSymbol">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-circle-question-mark"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>
+      </span>
+    </div>
+    <div class="statusPage stateUnknown" id="statusPage">
+      <div>
+        <div>
+          <h3>Status: <span id="status">0</span> </h3>
+        </div>
+        <div id="statusExplain"> (backend not connected)</div>
+      </div>
+      <span id="statusSymbol">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-circle-question-mark2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-circle-x2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-circle-check2"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>
+      </span>
+    </div>
+    </div>
+    <div class="navButtons">
+      <button id="jobListToggle" class="JobsBut">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
+      </button>
+      <button id="settings" class="settingBut">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </nav>
 
-                <div id="jogLock" class="jog-lock" role="status" hidden>
-                    <span class="jog-lock-icon" aria-hidden="true">▶</span>
-                    <strong>Job is running</strong>
-                    <small>Manual movement is locked until the job ends or you press STOP</small>
-                </div>
+  <main>
+    <section class="jogPart">
+      <section class="jogButGrid">
+        <h2>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gamepad-directional"><path d="M11.146 15.854a1.207 1.207 0 0 1 1.708 0l1.56 1.56A2 2 0 0 1 15 18.828V21a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-2.172a2 2 0 0 1 .586-1.414z"/><path d="M18.828 15a2 2 0 0 1-1.414-.586l-1.56-1.56a1.207 1.207 0 0 1 0-1.708l1.56-1.56A2 2 0 0 1 18.828 9H21a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1z"/><path d="M6.586 14.414A2 2 0 0 1 5.172 15H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2.172a2 2 0 0 1 1.414.586l1.56 1.56a1.207 1.207 0 0 1 0 1.708z"/><path d="M9 3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2.172a2 2 0 0 1-.586 1.414l-1.56 1.56a1.207 1.207 0 0 1-1.708 0l-1.56-1.56A2 2 0 0 1 9 5.172z"/></svg>
+          <span>Jog Pad</span>
+        </h2>
+        <div>
+            <div></div>
+            <button title="Y+">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-up"><path d="M8 6L12 2L16 6"/><path d="M12 2V22"/></svg>
+            </button>
+            <button title="Z+">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-up-right"><path d="M13 5H19V11"/><path d="M19 5L5 19"/></svg>
+            </button>
 
-                <div class="jog-control" aria-label="Axis movement controls">
-                    <button id="YbuttP" class="jog-button jog-up" type="button" aria-label="Move Y positive">Y+</button>
-                    <button id="XbuttM" class="jog-button jog-left" type="button" aria-label="Move X negative">X−</button>
-                    <div class="jog-center" aria-hidden="true"><span></span></div>
-                    <button id="XbuttP" class="jog-button jog-right" type="button" aria-label="Move X positive">X+</button>
-                    <button id="YbuttM" class="jog-button jog-down" type="button" aria-label="Move Y negative">Y−</button>
-                </div>
+            <button title="X+">
+              <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-left"><path d="M6 8L2 12L6 16"/><path d="M2 12H22"/></svg>
+            </button>
+            <button class="homeButton" title="Home Max">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </button>
+            <button title="X-">
+              <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-right"><path d="M18 8L22 12L18 16"/><path d="M2 12H22"/></svg>
+            </button>
 
-                <div class="z-controls">
-                    <span class="axis-label">Z axis <small id="zSpeedHint" class="axis-hint"></small></span>
-                    <div class="button-group">
-                        <button id="ZbuttP" class="jog-button jog-compact" type="button">Z+</button>
-                        <button id="ZbuttM" class="jog-button jog-compact" type="button">Z−</button>
-                    </div>
-                </div>
+            <button title="Z-">
+              <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-down-left"><path d="M11 19H5V13"/><path d="M19 5L5 19"/></svg>
+            </button>
+            <button title="Y-">
+              <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-down"><path d="M8 18L12 22L16 18"/><path d="M12 2V22"/></svg>
+            </button>
+            <div></div>
+        </div>
+      </section>
 
-                <div class="step-controls" aria-label="Movement parameters">
-                    <div class="slider-row">
-                        <label for="stepSize">Step</label>
-                        <input type="range" id="stepSize" min="0.05" max="25" step="0.05" value="10">
-                        <output id="stepSizeValue" for="stepSize">10 mm</output>
-                    </div>
-                    <div class="slider-row">
-                        <label for="stepSpeed">Feed</label>
-                        <input type="range" id="stepSpeed" min="1" max="160" step="1" value="10">
-                        <output id="stepSpeedValue" for="stepSpeed">10 mm/s</output>
-                    </div>
-                    <div class="slider-row">
-                        <label for="stepSpindle">Spindle</label>
-                        <input type="range" id="stepSpindle" min="0" max="20000" step="10" value="10">
-                        <output id="stepSpindleValue" for="stepSpindle">10 rpm</output>
-                    </div>
-                </div>
+      <section class="jogModel">
+        <canvas id="jogModelCanvass" class="jogModelCanvas"></canvas>
+        <div class="telemetry">
+          <h2>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-locate"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/></svg>
+            <span>Telemetry</span>
+          </h2>
+          <div>
+            <p><span class="telemetry-label-x">X: </span><span id="telemetryX" class="telemetry-value-x">0</span></p>
+            <p><span class="telemetry-label-y">Y: </span><span id="telemetryY" class="telemetry-value-y">0</span></p>
+            <p><span class="telemetry-label-z">Z: </span><span id="telemetryZ" class="telemetry-value-z">0</span></p>
+            <p><span class="telemetry-label-speed">Speed: </span><span id="telemetrySpeed" class="telemetry-value-speed">0</span></p>
+            <p><span class="telemetry-label-spindle">Spindle: </span><span id="telemetrySpindle" class="telemetry-value-spindle">0</span></p>
+          </div>
+        </div>
+      </section>
 
-                <p id="operateAnswer" class="operation-result" role="status">Ready for a command</p>
-            </section>
+      <section class="jogSpeeds">
+        <h2 class="jogName">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gauge" aria-hidden="true"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+          <span>Speeds</span>
+        </h2>
+        <div class="jogControlSpeed">
+        <div class="jogSteps">
+          <h3>Step Size</h3>
+          <div class="numberField">
+            <input type="number" max="50" min="0" value="1" id="stepSize">
+            <span class="unit">mm</span>
+          </div>
+          <div class="stepper">
+            <button type="button" class="stepArrow" data-step="up" data-input="stepSize" title="Step size +"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button type="button" class="stepArrow" data-step="down" data-input="stepSize" title="Step size -"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          </div>
+          <svg class="stepSizeArrow" id="stepSizeArrow" width="133" height="24" viewBox="-0.2 -0.2 133.7 24.2">
+            <g
+              id="layer1"
+              transform="translate(-31.076741,-142.86744)">
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect1"
+                width="131.48837"
+                height="22"
+                x="31.976744"
+                y="143.76744" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2"
+                width="0.89534879"
+                height="7.0348835"
+                x="36.965115"
+                y="143.76744" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6"
+                width="0.89534879"
+                height="7.0348835"
+                x="50.077419"
+                y="143.77499" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-2"
+                width="0.89534879"
+                height="7.0348835"
+                x="50.063217"
+                y="143.77348" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-2"
+                width="0.89534879"
+                height="7.0348835"
+                x="63.175522"
+                y="143.78104" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:2.07983;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-22"
+                width="0.61552161"
+                height="13.662033"
+                x="63.319458"
+                y="143.94064" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-9"
+                width="0.89534879"
+                height="7.0348835"
+                x="76.291847"
+                y="143.80829" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-29"
+                width="0.89534879"
+                height="7.0348835"
+                x="76.300621"
+                y="143.81726" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-1"
+                width="0.89534879"
+                height="7.0348835"
+                x="89.412926"
+                y="143.82481" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-4"
+                width="0.89534879"
+                height="7.0348835"
+                x="89.413544"
+                y="143.82094" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-0"
+                width="0.89534879"
+                height="7.0348835"
+                x="102.52584"
+                y="143.82849" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:2.07629;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-22-7"
+                width="0.61906278"
+                height="13.537667"
+                x="102.66434"
+                y="143.96385" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-29-5"
+                width="0.89534879"
+                height="7.0348835"
+                x="115.64727"
+                y="143.84224" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-4-9"
+                width="0.89534879"
+                height="7.0348835"
+                x="128.76019"
+                y="143.84592" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-0-7"
+                width="0.89534879"
+                height="7.0348835"
+                x="141.8725"
+                y="143.85347" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:2.07629;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-4-9-4"
+                width="0.61906278"
+                height="13.537667"
+                x="142.01077"
+                y="143.99695" />
+              <rect
+                style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-miterlimit:4.5;stroke-dasharray:none;stroke-opacity:1"
+                id="rect2-6-0-7-4"
+                width="0.89534879"
+                height="7.0348835"
+                x="154.98494"
+                y="143.86636" />
+            </g>
+          </svg>
+        </div>
+        <div class="jogSpeed">
+          <h3>Speed Size</h3>
+          <div class="numberField">
+            <input type="number" max="175" min="1" value="1" id="speedSize">
+            <span class="unit">mm/s</span>
+          </div>
+          <div class="stepper">
+            <button type="button" class="stepArrow" data-step="up" data-input="speedSize" title="Speed +"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button type="button" class="stepArrow" data-step="down" data-input="speedSize" title="Speed -"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          </div>
+          <svg id="speedSizeArrow" viewBox="32.3 104.9 105.6 65.2" width="75" height="46" class="speedSizeArrow">
+            <path d="M 35.35 157.35 A 50 50 0 0 1 135.35 157.35"
+                  fill="none" stroke="#cccccc" stroke-width="2.5"/>
 
-            <section class="panel status-panel" aria-labelledby="status-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Live telemetry</p>
-                        <h2 id="status-title">Printer status</h2>
-                    </div>
-                    <span class="live-label"><i aria-hidden="true"></i> Live</span>
-                </div>
+            <path id="gauge-fill" d="M 44.59 157.35 A 40.5 40.5 0 0 1 125.59 157.35"
+                  fill="none" stroke="currentColor" stroke-width="17"/>
 
-                <div class="status-summary">
-                    <p id="Status">Status: </p>
-                    <p id="error">Error: </p>
-                </div>
-                <p id="errorMessage" class="error-message">Waiting for the first report</p>
-                <div class="telemetry-grid">
-                    <p id="position" class="telemetry-position">X: Y: Z:</p>
-                    <p id="speed">Speed: </p>
-                    <p id="spindlSpeed">Spindle speed: </p>
-                </div>
-            </section>
+            <path 
+                  d="M 44.59 157.35 A 40.5 40.5 0 0 1 125.59 157.35"
+                  fill="none" stroke="#cccccc" stroke-width="17"
+                  stroke-dasharray="0 200"/>
 
-            <section class="panel endstop-panel" aria-labelledby="endstop-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Limit switches</p>
-                        <h2 id="endstop-title">Endstops hit during the last move</h2>
-                    </div>
-                    <span class="panel-badge">Latched</span>
-                </div>
+            <polygon id="gauge-needle"
+                    points="85.09,129.35 82.09,157.35 88.09,157.35"
+                    fill="#cccccc"/>
 
-                <div class="endstop-grid">
-                    <span class="endstop-chip endstop-unknown" id="esXmin"><i aria-hidden="true"></i>X min</span>
-                    <span class="endstop-chip endstop-unknown" id="esXmax"><i aria-hidden="true"></i>X max</span>
-                    <span class="endstop-chip endstop-unknown" id="esYmin"><i aria-hidden="true"></i>Y min</span>
-                    <span class="endstop-chip endstop-unknown" id="esYmax"><i aria-hidden="true"></i>Y max</span>
-                    <span class="endstop-chip endstop-unknown" id="esZmin"><i aria-hidden="true"></i>Z min</span>
-                    <span class="endstop-chip endstop-unknown" id="esZmax"><i aria-hidden="true"></i>Z max</span>
-                </div>
-                <p id="endstopSummary" class="operation-result" role="status">Waiting for the first report</p>
-            </section>
+            <rect x="34.79" y="155.79" width="100.56" height="11.77" fill="#cccccc"/>
+          </svg>
+        </div>
+        <div class="jogSpindle">
+          <h3>Spindle speed</h3>
+          <div class="numberField">
+            <input type="number" max="20000" min="0" value="0" change="50" id="spindleSize">
+            <span class="unit">RPM</span>
+          </div>
+          <div class="stepper">
+            <button type="button" class="stepArrow" data-step="up" data-input="spindleSize" title="Spindle speed +"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button type="button" class="stepArrow" data-step="down" data-input="spindleSize" title="Spindle speed -"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          </div>
+          <svg viewBox="57.9 171.5 91.4 85" width="75" height="70" class="spindleSizeArrow">
+            <path
+              style="fill:none;stroke:currentColor;stroke-width:5;stroke-miterlimit:4.5"
+              id="path2"
+              d="M 69.585619,199.32833 A 40,40 0 0 1 113.69668,174.587 40,40 0 0 1 146.78574,212.83661 40,40 0 0 1 115.95335,252.92754 40,40 0 0 1 70.491223,230.76646" />
+            <path
+              style="fill:currentColor;stroke:none"
+              id="path3"
+              d="m 60.397482,196.23312 7.069498,16.12005 14.691307,-15.04913 z" />
+          </svg>
+        </div>
+        </div>
+      </section>
 
-            <section class="panel job-panel" aria-labelledby="job-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Job progress</p>
-                        <h2 id="job-title">Current job</h2>
-                    </div>
-                    <span id="jobBadge" class="panel-badge job-badge job-idle">Idle</span>
-                </div>
+      <section class="endstops">
+        <h2 class="endstopName">
+          <svg viewBox="0 0 512 512" class="leverIcon" aria-hidden="true">
+            <g transform="translate(0,512) scale(0.1,-0.1)" fill="currentColor" stroke="none">
+              <path d="M815 5113 c-83 -12 -199 -49 -280 -88 -251 -121 -431 -340 -507 -615 l-23 -85 0 -1765 0 -1765 23 -85 c91 -335 346 -589 682 -682 85 -23 86 -23 715 -23 721 0 694 -3 890 94 252 125 418 328 502 616 16 55 18 146 23 1075 l5 1014 405 243 405 243 90 -38 c120 -52 198 -72 308 -81 299 -24 578 78 785 286 61 63 72 79 72 108 0 44 -29 75 -71 75 -25 0 -45 -14 -102 -71 -152 -151 -309 -227 -511 -248 -522 -53 -957 383 -905 907 44 433 426 762 859 739 167 -9 300 -54 434 -147 299 -207 425 -580 315 -937 -23 -73 -14 -104 34 -124 37 -15 75 2 95 43 27 57 53 188 59 293 14 287 -98 563 -309 760 -413 387 -1077 340 -1425 -100 -135 -170 -209 -367 -215 -573 l-3 -84 -159 -94 c-87 -52 -160 -94 -161 -94 -2 0 -5 98 -7 218 -6 250 -18 313 -93 467 -90 182 -241 332 -430 426 -193 95 -172 93 -865 95 -333 1 -618 0 -635 -3z m1290 -167 c264 -79 465 -272 552 -531 26 -77 27 -89 31 -340 l3 -260 -194 -116 -194 -116 -6 201 c-4 164 -9 213 -26 267 -54 173 -205 312 -383 354 -263 62 -532 -92 -620 -354 l-23 -66 -3 -1122 c-2 -763 0 -1135 8 -1162 13 -49 54 -70 100 -51 39 16 50 56 50 186 l0 101 368 221 367 220 3 -613 c2 -597 2 -615 -18 -668 -42 -112 -125 -191 -239 -227 -76 -24 -139 -25 -212 -4 -105 31 -184 97 -236 197 -25 48 -27 64 -33 212 -6 172 -14 201 -57 211 -44 11 -76 -7 -91 -51 -20 -57 -8 -282 18 -368 53 -170 204 -310 382 -352 263 -62 533 93 620 354 22 65 22 78 26 738 l3 671 172 103 c95 56 182 109 195 117 l23 15 -3 -964 -3 -964 -27 -80 c-46 -133 -101 -220 -202 -320 -105 -104 -182 -152 -316 -198 l-95 -32 -615 0 c-685 0 -666 -2 -819 71 -189 89 -330 238 -405 427 -58 147 -56 71 -56 1906 0 1136 3 1707 11 1747 58 330 302 581 629 649 51 11 191 13 660 11 537 -2 601 -4 655 -20z m-183 -710 c78 -37 139 -94 179 -168 l34 -63 3 -260 3 -260 -371 -222 -371 -222 3 482 3 482 27 51 c52 99 125 162 227 196 79 26 188 19 263 -16z m1282 -367 c39 -143 128 -292 243 -410 l73 -76 -1055 -631 c-580 -348 -1057 -632 -1060 -632 -3 0 -5 168 -5 373 l0 372 888 533 c488 292 890 532 893 532 3 0 13 -27 23 -61z"/>
+            </g>
+          </svg>
+          <span>Endstops</span>
+        </h2>
+        <div class="endstopsList">
+          <div id="eXF" class="endstopUndecided">X+</div>
+          <div id="eXB" class="endstopUndecided">X-</div>
+          <div id="eYF" class="endstopUndecided">Y+</div>
+          <div id="eYB" class="endstopUndecided">Y-</div>
+          <div id="eZF" class="endstopUndecided">Z+</div>
+          <div id="eZB" class="endstopUndecided">Z-</div>
+        </div>
+      </section>
+    </section>
 
-                <div class="job-meter" role="progressbar" id="jobMeter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <div id="jobBar" class="job-bar"></div>
-                </div>
+    <section class="jobGoingPart">
+      <div class="jobNameLabel">
+        <h2 class="jobNameKey"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg><span>Job</span></h2>
+        <div class="jobNameValue" id="jobName" default="No job yet">
+          No job yet
+        </div>
+      </div>
+      <section class="jobPicture">
+        <canvas id="pictureJob"></canvas>
+      </section>
+      <section class="jobButtons">
+        <button id="stopButton" aria-label="Stop">
+          Stop 
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-octagon-x"><path d="m15 9-6 6"/><path d="M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z"/><path d="m9 9 6 6"/></svg>
+        </button>
+        <button id="pauseOrContinueButton" aria-label="Pause or continue">
+          Pause 
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-pause"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-play"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+        </button>
+      </section>
+      <section class="jobETA">
+        <div class="time-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>ETA</span></div>
+        <div class="time-value" id="etaValue">0:00</div>
+      </section>
+    </section>
 
-                <div class="job-figures">
-                    <p id="jobName" class="job-name">No job is running</p>
-                    <p id="jobLine" class="job-line">Line —</p>
-                </div>
+  </main>
 
-                <div id="jobResult" class="job-result" role="status" hidden>
-                    <span class="job-result-icon" aria-hidden="true"></span>
-                    <div class="job-result-body">
-                        <strong id="jobResultTitle">Job finished</strong>
-                        <small id="jobResultDetail">Waiting for the first result</small>
-                    </div>
-                    <button id="jobResultDismiss" class="job-result-dismiss" type="button" aria-label="Dismiss the job result">×</button>
-                </div>
-            </section>
+  <section class="jobListPart">
+    <section class="jobListAdd">
+      <label for="jobUpload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><span>Click to upload gerber</span></label>
+      <input class="jobInput" id="jobUpload" type="file" hidden>
+      <div class="jobInputButton" id="jobUploadButton"></div>
+    </section>
+    <section class="jobList">
+      <h2 class="jobLabelUp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Uploaded jobs</span></h2>
+      <div id="jobsListed">Nothings here yet</div>
+    </section>
+  </section>
+  <!-- Mapa importu: prekladá holé nazvy ("three") na soubory v projektu.
+       STLLoader.js uvnitr importuje z 'three', takze bez ni by se nenacetl.
+       Knihovna je stazena do vendor/, ne z CDN - RPi u frezky nemusi mit
+       konektivitu ven a pak by zustalo prazdne platno. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
 
-            <section class="panel emergency-panel" aria-labelledby="emergency-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Job control</p>
-                        <h2 id="emergency-title">Stop &amp; resume</h2>
-                    </div>
-                    <span class="panel-badge">Soft stop</span>
-                </div>
-
-                <div class="control-row">
-                    <button id="stop" class="control-button control-danger" type="button">STOP</button>
-                    <button id="pause" class="control-button" type="button">PAUSE</button>
-                    <button id="continue" class="control-button control-accent" type="button">CONTINUE</button>
-                    <button id="homeMin" class="control-button" type="button">HOME MIN</button>
-                    <button id="homeMax" class="control-button" type="button">HOME MAX</button>
-                </div>
-                <p id="EmergencyID" class="operation-result" role="status">No job control command has been sent yet</p>
-            </section>
-
-            <section class="panel upload-panel" aria-labelledby="upload-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Job library</p>
-                        <h2 id="upload-title">Upload Gerber</h2>
-                    </div>
-                </div>
-                <label class="file-picker" for="gerberInput">
-                    <span class="file-picker-icon" aria-hidden="true">↑</span>
-                    <span>
-                        <strong>Select a Gerber file</strong>
-                        <small>Copper, outline or drill file from your PCB editor</small>
-                    </span>
-                    <input type="file" id="gerberInput" accept=".gbr,.ger,.gbrjob,.gtl,.gbl,.gts,.gbs,.gto,.gbo,.gtp,.gbp,.gm1,.gko,.drl,.xln">
-                </label>
-                <button id="gerberUpload" class="primary-button" type="button">Upload Gerber</button>
-                <p id="gerberFeedback" class="upload-feedback" role="status"></p>
-            </section>
-
-            <section class="panel gcodes-panel" aria-labelledby="gcodes-title">
-                <div class="panel-heading">
-                    <div>
-                        <p class="eyebrow">Saved jobs</p>
-                        <h2 id="gcodes-title">Job list</h2>
-                    </div>
-                </div>
-                <div id="GcodeList" class="gcode-list"></div>
-            </section>
-        </section>
-    </main>
-    <script src="./index.js"></script>
+  <script type="module" src="./script.js"></script>
 </body>
 </html>
