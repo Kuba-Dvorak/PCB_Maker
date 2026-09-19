@@ -71,6 +71,12 @@ Priklad: X = 12.34 mm  ->  1234
 0   Nano
 1   nanoComm (C++)
 2   backend (JS)
+3   frontend (browser)
+
+Status 3 se po drate nikdy neposle. Dopisuje si ho stranka sama v okamziku,
+kdy spojeni s backendem nestoji - tedy kdyz uz nema od koho zadny report
+dostat. Vsechna cisla na strance jsou pak posledni znamy stav, ne aktualni,
+a koncaky jdou do sedive.
 
 Status je nutny k precteni erroru. Stejne cislo erroru znamena u kazdeho
 zdroje neco jineho (napr. 6 a 7 se pouzivaji u Nana i u nanoComm jinak).
@@ -102,12 +108,46 @@ zdroje neco jineho (napr. 6 a 7 se pouzivaji u Nana i u nanoComm jinak).
 3    pohyb odmitnut, stroj neni homovany (prikaz se na UART vubec neposlal)
 6    Nano se odpojilo od serioveho portu pri cteni reportu
 7    seriovy port neni otevreny
+10   job skoncil driv, nez dosel soubor: Nano vratilo chybu, nebo uz
+     neodpovida. Spindl ani homing uz se neresi, job je pryc.
+11   job dojel az na konec souboru, odeslan cmd 7/255
+     -> spindl vypnuty a vsechny osy homovane na max
+
+Dve cisla nejsou chyby, jen znacky. Nesou informaci navic a poznaji se
+prave podle toho cisla, jinak vypadaji jako obycejny report:
+
+162  odhad celkoveho casu jobu. nanoComm kazdych 40 volani doGcodeTask
+     zmeri, kolik casu zatim ubehlo; cas/40 * pocet radku souboru da
+     odhad celku. Pocet radku drzi gcodeDecoder (totalLines).
+163  prereport - stav, ktery nanoComm posle dopredu, jeste nez ho
+     potvrdi Nano. Backend ho nezapisuje do currentReport, jen ho
+     preposle na frontend jako cmdBE 3. Slouzi k vykresleni, ne k
+     hlaseni stavu.
 
 --- status 2, hlasi backend (JS) ---------------------------------------
 
 0    backend jeste nedostal zadny report ze stroje
+1    frontend poslal neco, co neni platny JSON
+2    frontend poslal prikaz, kteremu backend nerozumi
+     (nezname cmd nebo subCmd, chybejici cislo)
+3    prikaz odmitnut, prave bezi job
+     -> jog i homing jsou behem jobu zamcene. Behem PAUZY povolene jsou,
+        prave kvuli vymene hrotu.
+4    G-kod se nepodarilo vygenerovat, tisk nezacal
+5    prikaz se nikam neodeslal, nanoComm neni pripojeny
 33   nanoComm poslal neco, co neni platny JSON
 34   nanoComm poslal zpravu bez uvodniho znaku $
+
+Cisla 1 az 5 vznikaji v backendu jeste pred tim, nez se ke stroji cokoliv
+posle. Ke stroji se v tu chvili nic nedostalo, takze by na report nebylo
+od koho cekat - proto si ho backend posle sam.
+
+--- status 3, hlasi frontend -------------------------------------------
+
+0    spojeni s backendem jeste nebylo navazano (stranka se prave otevrela)
+1    spojeni s backendem se zavrelo
+2    spojeni s backendem se nepodarilo otevrit
+     -> bezi server vubec, a sedi adresa v connectedURL?
 
 
 ------------------------------------------------------------------------

@@ -60,12 +60,12 @@ main > *,
        100 % = obrazek tak, jak je. Niz se pres nej prekryva cerna, aby
        panely nad nim zustaly citelne. Filtr to zamerne neni - ten by
        stmavil i obsah, tohle je dalsi vrstva pozadi pod nim. */
-    --bgBrightness: 35%;
+    --bgBrightness: 25%;
     --bgDim: rgb(0 0 0 / calc(100% - var(--bgBrightness)));
 
     /* Text uvnitr policek. Lezi na --canvasColor, ne na pozadi stranky,
        takze nesmi jit s --textColor do svetla. */
-    --fieldTextColor: #1b1b1b;
+    --fieldTextColor: #9EB1FF;
 
     --bgColor: #11131F;
     --borderColor: #304384;
@@ -575,13 +575,26 @@ main {
 .jobETA {
     border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
+    padding: var(--defaultPadding);
+    align-items: start;
+}
+
+
+.jobEtaSymbol {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--defaultPadding);
+}
+
+
+.jobEtaInner {
     grid-row: 3;
     padding: var(--defaultPadding);
     display: grid;
     grid-template-columns: auto auto;
     align-items: center;
 }
-
 
 
 /*job list part*/
@@ -978,6 +991,7 @@ canvas { background-color: var(--canvasColor); }
     padding: var(--defaultPadding);
     border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
+    background-color: var(--bgColor);
     font-size: 1.1rem;
     font-variant-numeric: tabular-nums;
     text-align: center;
@@ -1223,7 +1237,7 @@ button:not(.JobsBut, .settingBut, .stepArrow):focus-visible,
     padding: var(--defaultPadding);
     border: var(--borderColor) var(--defaultSolid) var(--borderSize);
     border-radius: var(--defaultRadius);
-    background-color: var(--canvasColor);
+    background-color: var(--bgColor);
 }
 
 /* Policko uz zadne vlastni pozadi ani ramecek nema, ty nese bublina. */
@@ -1591,3 +1605,71 @@ textarea { font-family: inherit; }
    smysl - jejich pismo je vychozich 13 px, z cehoz by u 56px ikony vysla
    nitka. Dostavaji proto pevnou hodnotu odpovidajici jejich velikosti. */
 .navButtons { --iconStroke: 2.4px; }
+
+
+/* --- nastaveni v popupu ------------------------------------------------
+   <dialog> je do otevreni display: none a showModal() ho sam vycentruje,
+   zatmavi pozadi a chyta Esc, takze se nic z toho nemusi psat v JS. */
+.settingsDialog {
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    border-radius: var(--defaultRadius);
+    background-color: var(--cardBGColor);
+    color: var(--textColor);
+    box-shadow: var(--shadowStrong);
+    padding: 0;
+    width: min(26rem, calc(100vw - 2 * var(--defaultMargin)));
+}
+
+.settingsDialog::backdrop { background-color: rgb(0 0 0 / 45%); }
+
+.settingsForm {
+    display: grid;
+    gap: var(--partsDistances);
+    padding: var(--defaultMargin);
+}
+
+.settingsTitle {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+    margin: 0;
+}
+
+.settingsTitle svg {
+    width: 1.4em;
+    height: 1.4em;
+    stroke-width: var(--iconStroke);
+}
+
+/* Popisek, policko a sipky na jeden radek. Sirku bere popisek, policko se
+   smrskne az k nemu - proto minmax(0, ...) u obou, jinak by pretekly. */
+.settingsRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto) max-content;
+    align-items: center;
+    gap: var(--defaultPadding);
+}
+
+.settingsNote {
+    margin: 0;
+    color: var(--textMutedColor);
+}
+
+.settingsClose {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--defaultPadding);
+}
+
+.settingsClose svg {
+    width: 1.2em;
+    height: 1.2em;
+    stroke-width: var(--iconStroke);
+}
+
+@media (max-width: 800px) {
+    /* Na uzko uz se popisek vedle policka nevejde, jde nad nej. */
+    .settingsRow { grid-template-columns: minmax(0, 1fr) max-content; }
+    .settingsRow label { grid-column: 1 / -1; }
+}

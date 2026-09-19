@@ -12,6 +12,15 @@ const sqlite3 = require("sqlite3").verbose();
 const { spawn } = require("child_process");
 const os = require("os");
 const util = require("util");
+const { WebSocketServer } = require('ws');
+const http = require("http");
+
+// Express sam o sobe zadny server neni, app.listen si ho uvnitr teprve vyrobi
+// a nikomu ho neda. WebSocketServer ale potrebuje ten samy server, aby jel na
+// stejnem portu jako stranka - proto se vyrobi tady a listen je uplne dole
+// na nem, ne na app.
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
 
 // Vsechny cesty se odvozuji od umisteni tohohle souboru, ne od pracovniho
 // adresare. Pri rucnim spusteni z webUI/backend to vyjde stejne jako driv,
@@ -268,27 +277,411 @@ const gerberUpload = multer({
 })
 
 
-let currentReport = {
-    status: 2,
-    error: 0,
-    x: -1,
-    y: -1,
-    z: -1,
-    speed: -1,
-    spindlSpeed: -1,
-    endstops: -1,
-    // Postup v souboru. -1 = job nebezi, plni to nanoComm v doGcodeTask.
-    gcodeLine: -1,
-    gcodeLines: -1,
-    // Odvozene tady, ne v Nanu: ten o zadnem "jobu" nevi.
-    jobRunning: false,
-    jobPaused: false,
-    jobName: ""
-}
-
+// Stav jobu drzi backend, Nano o zadnem "jobu" nevi. Jog se podle toho
+// zamyka, takze to musi byt na jednom miste a ne rozhozene po handlerech.
 let printUnderGoing = false
 let jobPaused = false
 let currentGcodeName = ""
+
+
+function sendCMD(cmd) {
+    if (!mainTransmisionSocket || mainTransmisionSocket.destroyed) {
+        console.log('[JS] Main socket is not connected, command was dropped:', JSON.stringify(cmd))
+        return false
+    }
+    const rawText = JSON.stringify(cmd)
+    mainTransmisionSocket.write(`$${rawText}\n`);
+    console.log('[JS] Send a message')
+    return true
+}
+
+
+// Vraci, jestli se to opravdu odeslalo. Bez toho by frontend dostal potvrzeni
+// pauzy i ve chvili, kdy emergency socket vubec nestoji a znak nikam nesel.
+function sendEmergency(emegencyNum) {
+    if (emegencyNum == 4 || emegencyNum == 5) {
+        if (!emergencyTransition || emergencyTransition.destroyed) {
+            console.log('[JS] Emergency socket is not connected, emergency was dropped:', emegencyNum)
+            return false
+        }
+    }
+
+    if (emegencyNum == 4) {
+         emergencyTransition.write(`;`);
+         console.log('[JS] Send an emergency')
+         return true
+    }
+
+    else if (emegencyNum == 5) {
+         emergencyTransition.write(`#`);
+         console.log('[JS] Send an emergency')
+         return true
+    }
+
+    else if (emegencyNum == 6) {
+         if (sendCMD({ cmd: 5 })) {
+             console.log('[JS] Send an emergency, to continue print')
+             return true
+         }
+
+         return false
+    }
+
+    console.log('[JS] Unknown emergency number')
+    return false
+}
+
+
+
+// --- prikazy od frontendu -----------------------------------------------
+// Cisla z frontendu (documentation/FE-BE-protocol.txt) NEJSOU stejna jako
+// cisla tasku pro nanoComm (commProtocol.txt). Preklad mezi nimi je jedina
+// prace, kterou tady backend dela - proto ma kazdy prikaz svoji funkci.
+
+// Smer jogu na znamenka os: subCmd 1-3 je plus, 4-6 minus.
+const jogDirections = {
+    1: { x: 1, y: 0, z: 0 },
+    2: { x: 0, y: 1, z: 0 },
+    3: { x: 0, y: 0, z: 1 },
+    4: { x: -1, y: 0, z: 0 },
+    5: { x: 0, y: -1, z: 0 },
+    6: { x: 0, y: 0, z: -1 }
+}
+
+const machineSettings = { safeZ: null, workZ: null }
+
+
+// Kdyz se ke stroji vubec nic neposlalo, nema kdo poslat report - a frontend
+// by cekal na neco, co nikdy neprijde. Status 2 znamena "hlasi backend".
+function backendReport(errorNum) {
+    sendMessageFe({
+        cmdBE: 2,
+        nanoReport: {
+            status: 2,
+            error: errorNum,
+            position: { x: -1, y: -1 },
+            z: -1,
+            speed: -1,
+            spindlSpeed: -1,
+            endstops: -1
+        }
+    })
+}
+
+
+// Potvrzeni, ze prikaz odesel. subCMD je cislo prikazu pro NANO, ne to
+// z frontendu - podle nej si frontend vypise, co se povedlo.
+function confirmToFe(nanoCmd) {
+    sendMessageFe({ cmdBE: 4, subCMD: nanoCmd })
+}
+
+
+// Behem pauzy je jog naopak povoleny, prave kvuli vymene hrotu. Pozici
+// k navratu si drzi nanoComm, takze ji rucni pojezd nerozbije.
+function machineIsBusy() {
+    return printUnderGoing && !jobPaused
+}
+
+
+function jogFromFrontend(message) {
+    const direction = jogDirections[message.subCmd]
+
+    if (!direction) {
+        console.warn(`[JS] Jog with unknown subCmd ${message.subCmd} was dropped`)
+        backendReport(2)
+        return
+    }
+
+    const step = Number(message.value3)
+    const speed = Number(message.value)
+    const spindleSpeed = Number(message.value2)
+
+    if (!Number.isFinite(step) || !Number.isFinite(speed) || !Number.isFinite(spindleSpeed)) {
+        console.warn("[JS] Jog without usable numbers was dropped:", JSON.stringify(message))
+        backendReport(2)
+        return
+    }
+
+    if (machineIsBusy()) {
+        console.warn("[JS] Jog refused, a job is running")
+        backendReport(3)
+        return
+    }
+
+    // Task 1 pro nanoComm je relativni posun, ten si ho prelozi na cmd 8
+    // pro Nano. Osy, kterymi se nehybe, jdou jako nula.
+    const sent = sendCMD({
+        cmd: 1,
+        x: direction.x * step,
+        y: direction.y * step,
+        z: direction.z * step,
+        speed: speed,
+        spindleSpeed: spindleSpeed
+    })
+
+    if (!sent) {
+        backendReport(5)
+        return
+    }
+
+    confirmToFe(8)
+}
+
+
+function homeFromFrontend(message) {
+    if (machineIsBusy()) {
+        console.warn("[JS] Homing refused, a job is running")
+        backendReport(3)
+        return
+    }
+
+    // subCmd 1 = na minimum, cokoliv jineho na maximum. Frontend ma zatim jen
+    // tlacitko HomeMax, takze maximum je vychozi.
+    const toMinimum = message.subCmd === 1
+
+    if (!sendCMD({ cmd: toMinimum ? 2 : 4 })) {
+        backendReport(5)
+        return
+    }
+
+    confirmToFe(toMinimum ? 3 : 4)
+}
+
+
+function jobFromFrontend(message) {
+    if (!printUnderGoing) {
+        console.warn(`[JS] Job command ${message.subCmd} arrived, but no job is running`)
+    }
+
+    // Stop. Emergency 5 je znak # a nanoComm ho bere jako konec - job se uz
+    // nevraci, na rozdil od pauzy.
+    if (message.subCmd === 1) {
+        if (!sendEmergency(5)) {
+            backendReport(5)
+            return
+        }
+
+        setJobRunning(false)
+        confirmToFe(7)
+        return
+    }
+
+    // Pauza. Emergency 4 je znak ; a nanoComm si pri nem zapamatuje pozici
+    // a odjede homingem na maximum, aby hrot nezustal v desce.
+    if (message.subCmd === 2) {
+        if (!sendEmergency(4)) {
+            backendReport(5)
+            return
+        }
+
+        setJobPaused(true)
+        confirmToFe(4)
+        return
+    }
+
+    if (message.subCmd === 3) {
+        if (!sendEmergency(6)) {
+            backendReport(5)
+            return
+        }
+
+        setJobPaused(false)
+        confirmToFe(5)
+        return
+    }
+
+    console.warn(`[JS] Job command with unknown subCmd ${message.subCmd} was dropped`)
+    backendReport(2)
+}
+
+
+function settingsFromFrontend(message) {
+    const value = Number(message.value)
+
+    if (!Number.isFinite(value)) {
+        console.warn("[JS] Setting without a usable number was dropped:", JSON.stringify(message))
+        backendReport(2)
+        return
+    }
+
+    if (message.subCmd === 1) {
+        machineSettings.safeZ = value
+    }
+
+    else if (message.subCmd === 2) {
+        machineSettings.workZ = value
+    }
+
+    else {
+        console.warn(`[JS] Setting with unknown subCmd ${message.subCmd} was dropped`)
+        backendReport(2)
+        return
+    }
+
+    // POZOR: nanoComm zatim nema task, kterym by se nastaveni dalo predat -
+    // resumeSafeZ i gcodeCutZ jsou v nem napevno. Nez takovy task vznikne,
+    // zustava hodnota jen tady a na stroj nema zadny vliv.
+    console.log(`[JS] Setting stored: safeZ ${machineSettings.safeZ}, workZ ${machineSettings.workZ}`)
+    console.warn("[JS] Settings are not sent anywhere yet, nanoComm has no task for them")
+}
+
+
+async function startPrint(gerberName) {
+    if (printUnderGoing) {
+        console.warn(`[JS] Print of ${gerberName} refused, a job is already running`)
+        backendReport(3)
+        return
+    }
+
+    const gcodePath = path.join(gcodeDir, `${gerberName}.gcode`)
+
+    // Rozhoduje soubor na disku, ne priznak v databazi. Prepocitat G-kod
+    // znovu je levnejsi nez poslat stroji cestu k necemu, co tam neni.
+    if (!fs.existsSync(gcodePath)) {
+        console.log(`[JS] No G-code for ${gerberName} yet, generating it`)
+        const result = await generateGcode(gerberName)
+
+        if (!result.ok) {
+            console.error(`[JS] G-code for ${gerberName} was not generated: ${result.answer}`)
+            backendReport(4)
+            return
+        }
+    }
+
+    // Cesta jde absolutni. nanoComm ji rozbaluje proti svemu pracovnimu
+    // adresari, a ten muze byt kdekoliv - pod systemd treba "/".
+    if (!sendCMD({ cmd: 3, path: gcodePath })) {
+        backendReport(5)
+        return
+    }
+
+    setJobRunning(true, gerberName)
+}
+
+
+function deletePrint(name) {
+    if (printUnderGoing && currentGcodeName === name) {
+        console.warn(`[JS] ${name} cannot be deleted, it is being milled right now`)
+        backendReport(3)
+        return
+    }
+
+    for (const filePath of [path.join(gerberDir, name), path.join(gcodeDir, `${name}.gcode`)]) {
+        if (fs.existsSync(filePath)) {
+            fs.rmSync(filePath, { force: true })
+            console.log(`[JS] Deleted ${filePath}`)
+        }
+    }
+
+    db.run(`DELETE FROM gcodeList WHERE name = ?`, [name], (err) => {
+        if (err) {
+            console.error("[JS DB] Row could not be deleted:", err.message)
+        }
+    })
+}
+
+
+async function printFromFrontend(message) {
+    // basename kvuli tomu, ze jmeno prichazi z prohlizece: bez nej by
+    // "../../etc/neco" ukazalo mimo gerbers/ a gcodes/.
+    const name = path.basename(String(message.value ?? ""))
+
+    if (!name || name === "." || name === "..") {
+        console.warn("[JS] Print command without a usable name was dropped")
+        backendReport(2)
+        return
+    }
+
+    if (message.subCmd === 1) {
+        await startPrint(name)
+        return
+    }
+
+    if (message.subCmd === 2) {
+        deletePrint(name)
+        return
+    }
+
+    console.warn(`[JS] Print command with unknown subCmd ${message.subCmd} was dropped`)
+    backendReport(2)
+}
+
+
+async function resolveMessage(messageData) {
+    let message
+
+    // ws predava data jako Buffer, ne jako retezec. JSON.parse si s nim
+    // poradi, porovnavat ho s retezcem by ale neslo.
+    try {
+        message = JSON.parse(messageData)
+    }
+
+    catch {
+        console.warn("[JS] Frontend sent something that is not JSON, it was dropped")
+        backendReport(1)
+        return
+    }
+
+    try {
+        if (message.cmd === 1) {
+            jogFromFrontend(message)
+            return
+        }
+
+        if (message.cmd === 2) {
+            homeFromFrontend(message)
+            return
+        }
+
+        if (message.cmd === 3) {
+            jobFromFrontend(message)
+            return
+        }
+
+        if (message.cmd === 4) {
+            settingsFromFrontend(message)
+            return
+        }
+
+        if (message.cmd === 5) {
+            await printFromFrontend(message)
+            return
+        }
+
+        console.warn(`[JS] Frontend sent unknown cmd ${message.cmd}, it was dropped`)
+        backendReport(2)
+    }
+
+    // Bez tohohle by chyba uvnitr shodila cely handler zpravy a spojeni by
+    // dal jen tise nic nedelalo.
+    catch (err) {
+        console.error("[JS] Frontend command failed:", err.message)
+        backendReport(2)
+    }
+}
+
+
+// message ani close nejsou udalosti serveru, ale jednotliveho spojeni -
+// na wss se da chytit jen 'connection'. Predava se funkce, ne jeji vysledek:
+// resolveMessage(data) by se zavolalo hned a navic s necim, co tady neexistuje.
+wss.on('connection', client => {
+    console.log('[JS] Frontend connected')
+
+    client.on('message', data => resolveMessage(data))
+
+    client.on('close', () => {
+        console.log('[JS] Frontend disconnected')
+    })
+})
+
+
+function sendMessageFe(message) {
+    wss.clients.forEach(client => {
+        if (client.readyState == 1) {
+            client.send(JSON.stringify(message))
+        }
+    });
+}
 
 
 // Pauza je zamerne oddelena od "job bezi". Job zustava rozdelany a continue
@@ -301,7 +694,6 @@ function setJobPaused(paused) {
     }
 
     jobPaused = paused
-    currentReport.jobPaused = jobPaused
 
     if (paused) {
         console.log("[JS] Job paused, jogging is unlocked")
@@ -326,13 +718,9 @@ function setJobRunning(running, name = "") {
 
     printUnderGoing = running
     currentGcodeName = running ? name : ""
-    currentReport.jobRunning = printUnderGoing
-    currentReport.jobName = currentGcodeName
 
     if (!running) {
         setJobPaused(false)
-        currentReport.gcodeLine = -1
-        currentReport.gcodeLines = -1
     }
 
     console.log(running
@@ -346,96 +734,50 @@ function handleNanoLine(line) {
         const rawText = line.slice(1)
         try {
             const message = JSON.parse(rawText);
-            const position = message.position
             console.log('[JS] Recieved report from nano')
-            currentReport.status = message.status
-            currentReport.error = message.error
-            currentReport.x = position.x
-            currentReport.y = position.y
-            currentReport.z = message.z
-            currentReport.speed = message.speed
-            currentReport.spindlSpeed = message.spindlSpeed
-            // -1 znamena "nevim". Radsi nic, nez ukazovat na FE stary stav koncaku jako aktualni.
-            currentReport.endstops = message.endstops ?? -1
 
-            // Reporty z jogu maji obe pole -1, prepsat by se tim smazal
-            // posledni znamy postup jobu. Bere se jen to, co ma smysl.
-            if (Number.isInteger(message.gcodeLine) && message.gcodeLine >= 0) {
-                currentReport.gcodeLine = message.gcodeLine
-                currentReport.gcodeLines = message.gcodeLines ?? -1
+            if (message.status === 1 && message.error === 163) {
+                sendMessageFe({
+                    cmdBE: 3, nanoReport: message
+                })
+                return
             }
 
-            // Error 8 posila Nano na M2, tedy na konci programu.
-            if (message.error === 8) {
+            if (message.status === 1 && message.error === 162) {
+                sendMessageFe({
+                    cmdBE: 5, nanoReport: message
+                })
+                return
+            }
+
+            // Konec jobu. Nano posle error 8 na M2, nanoComm 11 kdyz dojel
+            // soubor a 10 kdyz job umrel driv. Bez tohohle by printUnderGoing
+            // zustalo natrvalo true a jog by uz nikdy nesel odemknout.
+            if (message.status === 0 && message.error === 8) {
                 setJobRunning(false)
             }
 
+            if (message.status === 1 && (message.error === 10 || message.error === 11)) {
+                setJobRunning(false)
+            }
+
+            sendMessageFe({
+                cmdBE: 2, nanoReport: message
+            })
+
         } catch {
             console.log('[JS] Sent message from C++ is not a JSON')
-            currentReport.status = 2
-            currentReport.error = 33
-            currentReport.endstops = -1
+            backendReport(33)
         }
         return
     }
 
     else {
         console.log('[JS] Sent message from C++ did not contain correct starting symbol')
-        currentReport.status = 2
-        currentReport.error = 34
-        currentReport.endstops = -1
+        backendReport(34)
         return
     }
 
-}
-
-
-function sendCMD(cmd) {
-    if (!mainTransmisionSocket || mainTransmisionSocket.destroyed) {
-        console.log('[JS] Main socket is not connected, command was dropped:', JSON.stringify(cmd))
-        return false
-    }
-    const rawText = JSON.stringify(cmd)
-    mainTransmisionSocket.write(`$${rawText}\n`);
-    console.log('[JS] Send a message')
-    return true
-}
-
-
-function sendEmergency(emegencyNum) {
-    if (emegencyNum == 4 || emegencyNum == 5) {
-        if (!emergencyTransition || emergencyTransition.destroyed) {
-            console.log('[JS] Emergency socket is not connected, emergency was dropped:', emegencyNum)
-            return
-        }
-    }
-
-    if (emegencyNum == 4) {
-         emergencyTransition.write(`;`);
-         console.log('[JS] Send an emergency')
-    }
-
-    else if (emegencyNum == 5) {
-         emergencyTransition.write(`#`);
-         console.log('[JS] Send an emergency')
-    }
-
-    else if (emegencyNum == 6) {
-         if (sendCMD({ cmd: 5 })) {
-             console.log('[JS] Send an emergency, to continue print')
-         }
-    }
-
-    else {
-         console.log('[JS] Unknown emergency number')
-    }
-}
-
-
-function sendMistake(code, returnMessage, res) {
-    res.status(code).json({
-      message: returnMessage
-    })
 }
 
 
@@ -602,22 +944,6 @@ function generateGcode(gerberName) {
 }
 
 
-app.post("/currentPrinterInfo", async (req, res) => {
-    res.json(currentReport)
-})
-
-
-app.get("/gcodeListUpload", (req, res) => {
-    db.all(`SELECT name, date, gsize, printed FROM gcodeList`, [], (err, rows) => {
-        if (err) {
-            console.error("[JS DB] Error when loading DB:", err);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(rows);
-    });
-});
-
-
 app.post("/uploadGerber", gerberUpload.single("gerber"), async (req, res) => {
     // fileFilter soubor zahodil -> multer nenastavi req.file
     if (!req.file) {
@@ -630,25 +956,6 @@ app.post("/uploadGerber", gerberUpload.single("gerber"), async (req, res) => {
     console.log(`[JS] Gerber: ${req.file.originalname}, was uploaded`)
     res.json({
         answer: "Gerber upload was succesfull"
-    })
-})
-
-
-app.post("/newDBGcodeIns", async (req, res) => {
-    const time = req.body.time
-    const size = req.body.size
-    const name = req.body.name
-    db.run(`INSERT INTO gcodeList (name, date, gsize) VALUES (?, ?, ?)`, [name, time, size], function(err) {
-        if (err) {
-            console.error("[JS DB] Insert of G-code failed:", err);
-            return res.status(500).json({
-                answer: err.message
-            })
-        }
-
-        res.json({
-            answer: "All good, G-code was uploaded"
-        })
     })
 })
 
@@ -674,387 +981,6 @@ function readPrintedFlag(name) {
         })
     })
 }
-
-
-function checkUserPermission(owner, name) {
-    for (let i = 0; i < jobArray.length; i++) {
-        if (jobArray[i].name === name && jobArray[i].owner === owner) {
-            return true
-        }
-    }
-
-    return false
-}
-
-
-function checkUserBanned(user) {
-    for (let i = 0; i < currentBannedUsers.length; i++) {
-        if (currentBannedUsers[i] === owner) {
-            return true
-        }
-    }
-    return false
-}
-
-
-
-function checkUserAdmin(owner) {
-    for (let i = 0; i < currentAdmins.length; i++) {
-        if (currentAdmins[i] === owner) {
-            return true
-        }
-    }
-    return false
-}
-
-
-function jobArrayChangeOrder(index, newIndex) {
-
-}
-
-
-app.post("/printGcode", async (req, res) => {
-    if (req.body.aprove !== 1) {
-        console.log("[JS] Frontend made wrong gcode print request")
-        return res.json({
-            answer: "Wrong gcode print request json"
-        })
-    }
-
-    // Zamek jogovani je jen ve frontendu, tenhle endpoint se da zavolat
-    // i primo. Druhy job poslany doprostred prvniho by nanoComm rozjel
-    // soubezne s bezicim gcodeSender - to zastavit tady.
-    if (printUnderGoing) {
-        console.warn(`[JS] Print request refused, "${currentGcodeName}" is still running`)
-        return res.status(409).json({
-            answer: `Job "${currentGcodeName}" is still running. Stop it before starting another one.`
-        })
-    }
-
-    const name = path.basename(req.body.gcodeName ?? "")
-    console.log("[JS] Frontend made a gcode print request named: " + name)
-
-    if (name === "") {
-        console.warn("[JS] Print request arrived without a job name")
-        return res.status(400).json({
-            answer: "No job name was sent"
-        })
-    }
-
-    const row = await readPrintedFlag(name)
-    const gcodePath = path.join(gcodeDir, `${name}.gcode`)
-
-    // Priznak z DB sam nestaci - soubor uz mohl nekdo smazat rucne.
-    // Kdyz chybi kterakoliv z tech dvou veci, generuje se znovu.
-    const alreadyGenerated = Number(row?.printed) > 0 && fs.existsSync(gcodePath)
-
-    if (!alreadyGenerated) {
-        const result = await generateGcode(name)
-
-        if (!result.ok) {
-            console.error(`[JS] Print aborted, G-code was not generated: ${result.answer}`)
-            return res.status(500).json({
-                answer: result.answer
-            })
-        }
-
-        db.run(`UPDATE gcodeList SET printed = ? WHERE name = ?`, [`${Number(row?.printed) + 1}`, name], (err) => {
-            if (err) {
-                console.error("[JS DB] Could not store the printed flag:", err.message)
-            }
-        })
-    }
-
-    else {
-        console.log(`[JS] G-code already generated, reusing: ${gcodePath}`)
-    }
-
-    // Az tady, kdyz soubor opravdu existuje. Driv se cmd 3 poslalo hned
-    // a Nano dostalo cestu k souboru, ktery jeste nevznikl.
-
-    res.json({
-        answer: "Print addded to the queue"
-    })
-})
-
-
-app.post("/deleteGcode", async (req, res) => {
-    if (req.body.aprove === 1) {
-        const name = req.body.name
-        db.run(`DELETE FROM gcodeList WHERE name = ?`, [name], function(err) {
-            if (err) {
-                console.error("[JS DB] Delete of G-code failed:", err);
-                return;
-            }
-        })
-        // Upload jde do gerbers/, takze se maze odtud.
-        // TODO az bude pcb2gcode: smazat i vygenerovany gcodes/<name>.gcode
-        fs.unlink(`${gerberDir}/${path.basename(name)}`, (err) => {
-        if (err) {
-            console.error("[JS] Gerber file could not be deleted:", err.message)
-            return
-        }
-
-        console.log("[JS] gerber file deleted")
-    })
-        res.json({
-            answer: `Succesufully deleted gcode named: ${name}`
-        })
-    }
-    else {
-        console.log("[JS] Frontend made wrong gcode delete request")
-        res.json({
-            answer: "Wrong gcode print request json"
-        })
-    }
-})
-
-
-app.post("/operate", async (req, res) => {
-    if (req.body.corect === true) {
-        if (req.body.cmd === "x") {
-            sendCMD({
-                cmd: 1,
-                x: req.body.size,
-                y: -1,
-                z: -1,
-                speed: req.body.speed,
-                spindleSpeed: req.body.spindleSpeed
-            })
-        }
-        else if (req.body.cmd === "y") {
-            sendCMD({
-                cmd: 1,
-                x: -1,
-                y: req.body.size,
-                z: -1,
-                speed: req.body.speed,
-                spindleSpeed: req.body.spindleSpeed
-            })
-        }
-        else if (req.body.cmd === "z") {
-            sendCMD({
-                cmd: 1,
-                x: -1,
-                y: -1,
-                z: req.body.size,
-                speed: req.body.speed,
-                spindleSpeed: req.body.spindleSpeed
-            })
-        }
-
-        else {
-            console.log("[JS] Unknown operate command:", req.body.cmd)
-            return res.json({
-                answer: "Unknown operate command"
-            })
-        }
-
-        res.json({
-            answer: "Movement sent"
-        })
-    }
-
-    else {
-        res.json({
-            answer: "Wrong code"
-        })
-    }
-})
-
-
-app.post("/home", async (req, res) => {
-    if (req.body.cmd === "min") {
-        sendCMD({
-            cmd: 2
-        })
-        res.json({
-            answer: "Homing to min sent"
-        })
-    }
-
-    else if (req.body.cmd === "max") {
-        sendCMD({
-            cmd: 4
-        })
-        res.json({
-            answer: "Homing to max sent"
-        })
-    }
-
-    else {
-        console.log("[JS] Unknown homing direction:", req.body.cmd)
-        res.json({
-            answer: "Unknown homing direction"
-        })
-    }
-})
-
-
-app.post("/emergency", async function (req, res) {
-    if (req.body.cmd === "Pause") {
-        sendEmergency(4)
-        setJobPaused(true)
-        res.json({
-            answer: "Pause sent"
-        })
-    }
-
-    else if (req.body.cmd === "Stop") {
-        sendEmergency(5)
-        // Tvrdy stop job zahazuje, continue uz ho nevzkrisi - odemknout jog.
-        // Pause naopak nechava job bezet, tam se stav nemeni.
-        setJobRunning(false)
-        res.json({
-            answer: "Stop sent"
-        })
-        jobArray.shift()
-    }
-    
-    else if (req.body.cmd === "Continue") {
-        sendEmergency(6)
-        setJobPaused(false)
-        res.json({
-            answer: "Continue sent"
-        })
-    }
-
-    else {
-        console.log("[JS] Unknown command")
-        res.json({
-            answer: "Unknown command"
-        })
-    }
-})
-
-
-app.post("/currentJobs", async (req, res) => {
-    if (req.body.reason === "load") {
-        const index = req.body.index
-        if (index < 0 || index >= jobArray.length) {
-            res.json({
-                nextOne: false
-            })
-        }
-
-        else {
-            let youAreOwner = false
-            if (req.body.user === jobArray[index].owner) {
-                youAreOwner = true
-            }
-
-            res.json({
-                nextOne: true,
-                name: jobArray[index].name,
-                you: youAreOwner
-            })
-        }
-    }
-
-    else if (req.body.reason === "operate") {
-        if (!checkUserBanned(req.body.user)) {
-            if (req.body.cmd === "SpecialOp" && checkUserAdmin(req.body.user)) {
-            if (req.body.spcmd === "rearange") {
-                jobArrayChangeOrder(req.body.index, req.body.newIndex)
-                if (req.body.newIndex === 0) {
-                    sendEmergency(4)
-                    setJobPaused(true)
-                }
-            }
-            
-            else if (req.body.spcmd === "banUser") {
-                if (!checkUserAdmin(req.body.reqUser)) {
-                    currentBannedUsers.push(req.body.reqUser)
-                }
-            }
-        }
-
-        const name = req.body.jobName
-        if (name === jobArray[0].name) {
-            if (req.body.cmd === "Start") {
-                const gcodePath = path.join(gcodeDir, `${name}.gcode`)
-                sendCMD({
-                    cmd: 3,
-                    path: gcodePath
-                })
-
-                setJobRunning(true, name)
-                res.json({
-                    answer: `Print ${name} started`
-                })
-                return
-            }
-
-            if (checkUserPermission(req.body.user, req.body.jobName) || checkUserAdmin(req.body.user)) {
-                if (req.body.cmd === "Pause") {
-                    sendEmergency(4)
-                    setJobPaused(true)
-                    res.json({
-                        answer: "Pause sent"
-                    })
-                }
-
-                else if (req.body.cmd === "Stop") {
-                    sendEmergency(5)
-                    // Tvrdy stop job zahazuje, continue uz ho nevzkrisi - odemknout jog.
-                    // Pause naopak nechava job bezet, tam se stav nemeni.
-                    setJobRunning(false)
-                    res.json({
-                        answer: "Stop sent"
-                    })
-                    jobArray.shift()
-                }
-                
-                else if (req.body.cmd === "Continue") {
-                    sendEmergency(6)
-                    setJobPaused(false)
-                    res.json({
-                        answer: "Continue sent"
-                    })
-                }
-
-                else {
-                    console.log("[JS] Unknown command")
-                    res.json({
-                        answer: "Unknown command"
-                    })
-                }
-            }
-            
-            else {
-                res.json({
-                        answer: "Permission denied for this job, you are not the owner of this job"
-                })
-            }
-        }
-
-        else {
-            res.json({
-                answer: "You can only operate the first job in the queue"
-            })
-        }
-        }
-    }
-})
-
-
-
-app.post("/siteAdminAttepmt", async (req, res) => {
-    if (req.body.code === adminCode) {
-        currentAdmins.push(req.body.myName)
-        res.json({
-            permission: true
-        })
-    }
-    
-    else {
-        res.json({
-            permission: false
-        })
-    }
-})
-
-
 
 
 // 3300 se nekryje s nicim z MainsailOS na stejnem RPi: nginx drzi 80 (a 81
@@ -1083,7 +1009,7 @@ function localAddresses() {
 }
 
 
-app.listen(httpPort, httpHost, () => {
+server.listen(httpPort, httpHost, () => {
     console.log(`[JS] Backend and frontend are listening on ${httpHost}:${httpPort}`)
     console.log(`[JS] On the Pi itself: http://localhost:${httpPort}`)
 

@@ -200,9 +200,9 @@ struct calibration {
     }
 
     void setupFreqX(uint16_t freq) {
+        clockX = 1;
         countingX = 0;
         counterXMax = (masterFreq / freq);
-        clockX = 1;
         constantX = (unsigned long)(((float)masterFreq / freq) * timeConst);
         counterX = masterFreq;
         stateRampUpX = 1;
@@ -215,9 +215,9 @@ struct calibration {
     }
 
     void setupFreqY(uint16_t freq) {
+        clockY = 1;
         countingY = 0;
         counterYMax = (masterFreq / freq);
-        clockY = 1;
         constantY = (unsigned long)(((float)masterFreq / freq) * timeConst);
         counterY = masterFreq;
         stateRampUpY = 1;
@@ -230,9 +230,9 @@ struct calibration {
     }
 
     void setupFreqZ(uint16_t freq) {
+        clockZ = 1;
         countingZ = 0;
         counterZMax = (masterFreq / freq);
-        clockZ = 1;
         constantZ = (unsigned long)(((float)masterFreq / freq) * timeConst);
         counterZ = masterFreq;
         stateRampUpZ = 1;
@@ -1085,18 +1085,6 @@ struct cnc {
         int freqX = int(myCalib.maxStepX / totalTime); // matematicky prepis tohodle:  1 / (totalTime / totalStepsX)
         int freqY = int(myCalib.maxStepY / totalTime);
 
-        // Po dosazeni totalTime = lenght / speed a maxStepX = 12.5 * |dx| je
-        //     freqX = 12.5 * speed * |dx| / lenght
-        // takze na segmentu skoro rovnobeznem s osou Y (a pri malem posuvu)
-        // to vyjde pod 1 a int() to usekne na nulu. Bez tehle pojistky by se
-        // setupFreqX nezavolal, osa by se vubec nerozjela, ale pozice by se
-        // dole pricetla - a protoze kazdy dalsi cil se pocita z ni, chyba by
-        // se uz neopravila, jen hromadila. Merene na ten.GBL (725 pohybu):
-        // pri F200 se to tykalo 4 pohybu a nasbiralo 0.253 mm, pri F20 uz
-        // 92 pohybu a 7.077 mm - viz poznamka 9 v printer/millproject.
-        // Jeden krok za sekundu je pomaly, ale freqX == 0 znamena
-        // maxStepX < totalTime, takze se stejne stihne driv, nez mel pohyb
-        // podle zadaneho posuvu trvat.
         if (freqX == 0 && myCalib.maxStepX > 0) {
             freqX = 1;
         }
@@ -1107,11 +1095,17 @@ struct cnc {
 
         if (freqX != 0) {
             myCalib.finishedJob -= 1;
-            myCalib.setupFreqX(freqX);
         }
 
         if (freqY != 0) {
             myCalib.finishedJob -= 1;
+        }
+
+        if (freqX != 0) {
+            myCalib.setupFreqX(freqX);
+        }
+
+        if (freqY != 0) {
             myCalib.setupFreqY(freqY);
         }
 

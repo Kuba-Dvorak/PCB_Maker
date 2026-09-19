@@ -1,0 +1,74 @@
+
+
+it is a JSON
+from FE to BE
+cmd:
+    1 - jog (value = speed, value2 = spindleSpeed, value3: stepSize
+    2 - home
+    3 - job
+    4 - settings
+    5 - operatePrint
+    6 - request load prints
+
+subCmd (for jog):
+                1 - x
+                2 - y
+                3 - z
+                4 - x-
+                5 - y-
+                6 - z-
+
+subCmd (for home):
+                1 - na minimum vsech os
+                (cokoliv jineho nebo nic = na maximum, to je vychozi)
+
+subCmd (for job):
+                1 - stop
+                2 - pause
+                3 - continue
+
+subCmd (for settings (might get updates), value then serves as the actual value):
+                                        1 - change safe Z
+                                        2 - change Z work
+                                        -- veci jako dark/light a custom pozadi jsou taky v menu rozkliknuteho koleckem, ale to se uklada do browseru, ne do serveru
+                                        
+subCmd (for operatePrint):
+                        1 - start printing
+                        2 - delete print
+                        -- uploading print goes through individual multer http req, not websocket
+
+message protocol:
+
+{
+    cmd: int, subCmd: int, value: any, value2: number, value3: number
+}
+
+from BE to FE
+
+cmdBE:
+    1 - load
+    2 - report
+    3 - prereport (used in gcode print to adjust the svg render of the plate and to move the model, doesn't hold any real info, is just for estetics)
+    4 - response to cmd
+    5 - odhad celkoveho casu jobu (nanoReport se statusem 1 a errorem 162).
+        Neni to stav stroje, do currentReport se nezapisuje - backend ho
+        rovnou preposle sem. Viz commProtocol.txt.
+
+subCMD (for cmd 4):
+                (all the cmd's from nano, so it says to what it is responding, like: jog succesfull, homing succesfull, job succesfully stoped etc...)
+
+message protocol, report is along the ussual protocol:
+    
+{
+        cmdBE: int, subCMD: int, nanoReport: report, job: jobParameters
+}
+
+
+
+message protocol (for jobParameters):
+
+{
+    name: string, date: number, size: number
+}
+    
+    

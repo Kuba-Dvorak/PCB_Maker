@@ -231,12 +231,6 @@ struct nanoReport {
     float speed, spindlSpeed;
     uint8_t endstops;
 
-    // Postup v G-kodu. Nano o radcich nic nevi, tyhle dve pole plni az
-    // nanoComm v doGcodeTask. -1 znamena "zadny job nebezi" - podle toho
-    // frontend pozna, jestli ma zamknout jogovani.
-    int gcodeLine = -1;
-    int gcodeLines = -1;
-
     nanoReport(uint8_t status = 0, uint8_t error = 0, Position position = {0, 0}, float z = 0, float speed = 0, float spindlSpeed = 0, uint8_t endstops = 0) {
         this->status = status;
         this->error = error;
@@ -251,7 +245,7 @@ struct nanoReport {
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Position, x, y);
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed, endstops, gcodeLine, gcodeLines);
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(nanoReport, status, error, position, z, speed, spindlSpeed, endstops);
 
 
 float loadNumberForData(int &currentChar, std::string &text) {
@@ -1002,20 +996,10 @@ struct gcodeDecoder {
     }
 
 
-    // Cislo radku, na kterem dekoder stoji, a kolik jich soubor ma. Pocita se
-    // az na vyzadani - drzet to prubezne by znamenalo hlidat kazdy inkrement
-    // currentChar na peti mistech. Soubor ma radove desitky kB a prochazi se
-    // jednou za prikaz, takze to nic nestoji.
-    int currentLine() const {
-        if (gcodeText.empty()) {
-            return 0;
-        }
-
-        size_t upTo = std::min(currentChar, gcodeText.length());
-        return (int)std::count(gcodeText.begin(), gcodeText.begin() + upTo, '\n') + 1;
-    }
-
-
+    // Kolik radku soubor ma. Postup uz se podle radku nehlasi, tohle cislo
+    // zustava kvuli odhadu zbyvajiciho casu: zmereny cas na 40 prikazu
+    // vydeleny ctyriceti a vynasobeny poctem radku da odhad celku.
+    // Pocita se az na vyzadani, soubor ma radove desitky kB.
     int totalLines() const {
         if (gcodeText.empty()) {
             return 0;
@@ -1297,6 +1281,49 @@ struct tcpCommUser {
 };
 
 
+struct clockThing {
+    std::chrono::steady_clock::time_point start;
+    int lineNum = 0;
+    int lineCount = 75;
+    int lineFullCount = 500;
+    int fullLenghtSec = 0;
+    int segmentLenght = 0;
+
+    clockThing(int lineCount = 75) {
+        this->lineCount = lineCount;
+    }
+
+    void beginClock() {
+        start = std::chrono::steady_clock::now();
+    }
+
+    void clockDuration() {
+        segmentLenght = (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
+    }
+
+    void reset(int gcodeLines) {
+        lineNum = 0;
+        fullLenghtSec = 0;
+        lineFullCount = gcodeLines;
+
+        // Bez tohohle meri prvni segment od epochy steady_clocku, tedy od
+        // startu masiny, a prvni odhad by vysel v hodinach.
+        beginClock();
+    }
+
+    void operate(tcpCommUser &myTCPUser) {
+        lineNum += 1;
+        if (lineNum >= lineCount) {
+            clockDuration();
+            beginClock();
+            lineNum = 0;
+            fullLenghtSec = int(((float)segmentLenght / (float)lineCount) * (float)lineFullCount);
+            myTCPUser.sendData({1, 162, {0, 0}, (float)fullLenghtSec});
+        }
+    }
+};
+
+
 struct communicator {
     uartComm myUART;
     gcodeDecoder myDec;
@@ -1314,6 +1341,7 @@ struct communicator {
     float resumeSafeZ = 10.0f;
     bool started = false;
     basicCMD lastCMD;
+    clockThing myClock;
 
     communicator(fs::path port) {
         this->myUART = uartComm(port, 115200);
@@ -1366,12 +1394,8 @@ struct communicator {
     bool doGcodeTask(gcodeDecoder &decoder) {
         nanoReport curReport = myUART.listenUART();
         int message = myEmergencyUser.readEmergency();
+        myClock.operate();
 
-        // Jedine misto, kde se vi, jak daleko jsme v souboru. Reporty z jogu
-        // sem nechodi, takze tam obe pole zustanou na -1 a frontend podle
-        // toho pozna, ze zadny job nebezi.
-        curReport.gcodeLine = decoder.currentLine();
-        curReport.gcodeLines = decoder.totalLines();
         myTCPUser.sendData(curReport);
 
         if (message == 4 || message == 5) {
@@ -1483,6 +1507,10 @@ struct communicator {
         std::stringstream buffer;
         buffer << file.rdbuf();
         gcodeDecoder decoder = gcodeDecoder(buffer.str(), startChar);
+
+        // Az tady, ne nahore u otevreni souboru: pocet radku zna teprve
+        // dekoder a nahore jeste neni ani jiste, ze soubor existuje.
+        myClock.reset(decoder.totalLines());
 
         if (toContinue) {
             std::cout << "[GCODE] Continuing G-code task from remembered position: X " << remeberedReport.position.x

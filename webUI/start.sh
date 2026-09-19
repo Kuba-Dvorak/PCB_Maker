@@ -23,7 +23,7 @@ WEB_PORT=3300
 
 # Seriovy port Nana. Musi sedet s cestou v nanoComm/main.cpp - tady se jen
 # kontroluje, jestli vubec existuje a jde na nej cist.
-SERIAL_PORT="${CNC_SERIAL_PORT:-/dev/ttyUSB0}"
+SERIAL_PORT="${CNC_SERIAL_PORT:-/dev/arduino0}"
 
 NANOCOMM_PID=""
 
@@ -48,7 +48,7 @@ fi
 # Raspberry Pi OS se hlasi jako "debian", starsi jako "raspbian".
 is_debian_like() {
     case "$OS_ID" in
-        debian|raspbian|ubuntu) return 0 ;;
+        (debian|raspbian|ubuntu) return 0 ;;
     esac
 
     grep -qs 'ID_LIKE=.*debian' /etc/os-release

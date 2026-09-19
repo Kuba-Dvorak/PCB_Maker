@@ -102,10 +102,10 @@
     </div>
     </div>
     <div class="navButtons">
-      <button id="jobListToggle" class="JobsBut">
+      <button id="jobListToggle" class="JobsBut" aria-label="Job list" aria-expanded="true">
         <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg>
       </button>
-      <button id="settings" class="settingBut">
+      <button id="settings" class="settingBut" aria-label="Settings" aria-haspopup="dialog">
         <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
@@ -120,27 +120,27 @@
         </h2>
         <div>
             <div></div>
-            <button title="Y+">
+            <button id="YUp" title="Y+">
               <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-up"><path d="M8 6L12 2L16 6"/><path d="M12 2V22"/></svg>
             </button>
-            <button title="Z+">
+            <button id="ZUp" title="Z+">
               <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-up-right"><path d="M13 5H19V11"/><path d="M19 5L5 19"/></svg>
             </button>
 
-            <button title="X+">
+            <button id="XDown" title="X-">
               <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-left"><path d="M6 8L2 12L6 16"/><path d="M2 12H22"/></svg>
             </button>
-            <button class="homeButton" title="Home Max">
+            <button class="homeButton" id="HomeMax" title="Home Max">
               <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             </button>
-            <button title="X-">
+            <button title="X+" id="XUp">
               <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-right"><path d="M18 8L22 12L18 16"/><path d="M2 12H22"/></svg>
             </button>
 
-            <button title="Z-">
+            <button title="Z-" id="ZDown">
               <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-down-left"><path d="M11 19H5V13"/><path d="M19 5L5 19"/></svg>
             </button>
-            <button title="Y-">
+            <button title="Y-" id="YDown">
               <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-down"><path d="M8 18L12 22L16 18"/><path d="M12 2V22"/></svg>
             </button>
             <div></div>
@@ -173,7 +173,7 @@
         <div class="jogSteps">
           <h3>Step Size</h3>
           <div class="numberField">
-            <input type="number" max="50" min="0" value="1" id="stepSize">
+            <input type="number" max="50" min="0" step="0.1" value="1" id="stepSize">
             <span class="unit">mm</span>
           </div>
           <div class="stepper">
@@ -309,7 +309,7 @@
         <div class="jogSpeed">
           <h3>Speed Size</h3>
           <div class="numberField">
-            <input type="number" max="175" min="1" value="1" id="speedSize">
+            <input type="number" max="175" min="1" step="1" value="1" id="speedSize">
             <span class="unit">mm/s</span>
           </div>
           <div class="stepper">
@@ -338,14 +338,14 @@
         <div class="jogSpindle">
           <h3>Spindle speed</h3>
           <div class="numberField">
-            <input type="number" max="20000" min="0" value="0" change="50" id="spindleSize">
+            <input type="number" max="20000" min="0" step="50" value="0" id="spindleSize">
             <span class="unit">RPM</span>
           </div>
           <div class="stepper">
             <button type="button" class="stepArrow" data-step="up" data-input="spindleSize" title="Spindle speed +"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
             <button type="button" class="stepArrow" data-step="down" data-input="spindleSize" title="Spindle speed -"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
           </div>
-          <svg viewBox="57.9 171.5 91.4 85" width="75" height="70" class="spindleSizeArrow">
+          <svg id="spindleSizeArrow" viewBox="57.9 171.5 91.4 85" width="75" height="70" class="spindleSizeArrow">
             <path
               style="fill:none;stroke:currentColor;stroke-width:5;stroke-miterlimit:4.5"
               id="path2"
@@ -401,8 +401,24 @@
         </button>
       </section>
       <section class="jobETA">
-        <div class="time-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>ETA</span></div>
-        <div class="time-value" id="etaValue">0:00</div>
+        <div class="jobEtaSymbol">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span>Times</span>
+        </div>
+        <div class="jobEtaInner">
+          <div class="time-label">
+          <span>Printing time</span>
+          </div>
+          <div class="time-value" id="PrintTimeValue">0:00</div>
+          <div class="time-label">
+            <span>Estimate</span>
+          </div>
+          <div class="time-value" id="EstimateValue">0:00</div>
+          <div class="time-label">
+            <span>ETA</span>
+          </div>
+          <div class="time-value" id="EtaValue">0:00</div>
+          </div>
       </section>
     </section>
 
@@ -419,6 +435,48 @@
       <div id="jobsListed">Nothings here yet</div>
     </section>
   </section>
+  <!-- Nastaveni stroje. <dialog> umi modalitu, Esc i zatmaveni pozadi sam,
+       takze neni potreba nic z toho psat v JS. -->
+  <dialog id="settingsDialog" class="settingsDialog" aria-labelledby="settingsTitle">
+    <form method="dialog" class="settingsForm">
+      <h2 id="settingsTitle" class="settingsTitle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Settings</span>
+      </h2>
+
+      <div class="settingsRow">
+        <label for="safeZ">Safe Z</label>
+        <div class="numberField">
+          <input type="number" min="0" max="8" step="0.1" value="8" id="safeZ">
+          <span class="unit">mm</span>
+        </div>
+        <div class="stepper">
+            <button type="button" class="stepArrow" data-step="up" data-input="safeZ" title="Safe Z +"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button type="button" class="stepArrow" data-step="down" data-input="safeZ" title="Safe Z -"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+      </div>
+
+      <div class="settingsRow">
+        <label for="workZ">Work Z</label>
+        <div class="numberField">
+          <input type="number" min="0" max="8" step="0.05" value="1.1" id="workZ">
+          <span class="unit">mm</span>
+        </div>
+        <div class="stepper">
+            <button type="button" class="stepArrow" data-step="up" data-input="workZ" title="Work Z +"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
+            <button type="button" class="stepArrow" data-step="down" data-input="workZ" title="Work Z -"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+      </div>
+
+      <p class="settingsNote">Both are sent to the machine as soon as you leave the field.</p>
+
+      <button class="settingsClose" value="close">
+        <span>Close</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </form>
+  </dialog>
+
   <!-- Mapa importu: prekladá holé nazvy ("three") na soubory v projektu.
        STLLoader.js uvnitr importuje z 'three', takze bez ni by se nenacetl.
        Knihovna je stazena do vendor/, ne z CDN - RPi u frezky nemusi mit
