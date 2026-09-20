@@ -676,14 +676,267 @@ await canvasStarsSquence()
 let ongoingJob = false
 
 
-function loadAddJob(name, date, size) {
-    
+const jobsListedElement = document.querySelector("#jobsListed")
+const jobSearchElement = document.querySelector("#jobSearch")
+const jobUploadElement = document.querySelector("#jobUpload")
+const jobUploadNoteElement = document.querySelector("#jobUploadNote")
+
+// Text "Nothings here yet" je v HTML jako holy text. Uklada se hned na
+// zacatku, aby se po smazani posledniho jobu mel kam vratit.
+const jobsListedEmptyText = jobsListedElement.textContent.trim()
+
+
+// Hlaska pod tlacitkem nahravani. Prazdny text ji schova.
+function showUploadNote(text) {
+    jobUploadNoteElement.textContent = text
+    jobUploadNoteElement.hidden = !text
+}
+
+// Stejne pripony jako hlida backend. Nahrava se jenom gerber, G-kod se
+// k nemu vyrobi az pri tisku.
+const gerberEndings = [
+    ".gbr", ".ger", ".gbrjob",
+    ".gtl", ".gbl",
+    ".gts", ".gbs",
+    ".gto", ".gbo",
+    ".gtp", ".gbp",
+    ".gm1", ".gko",
+    ".drl", ".xln"
+]
+
+
+function fileEnding(name) {
+    const dot = name.lastIndexOf(".")
+    return dot === -1 ? "" : name.slice(dot).toLowerCase()
 }
 
 
-function uploadJob(params) {
-    
+// Bajty na neco, co jde precist. Soubory jsou radove kB az stovky kB.
+function formatSize(bytes) {
+    if (bytes < 1024) {
+        return `${bytes} B`
+    }
+
+    if (bytes < 1024 * 1024) {
+        return `${Math.round(bytes / 1024)} kB`
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+
+function sendPrint(subCmd, name) {
+    if (webSocket.readyState === 1) {
+        webSocket.send(JSON.stringify({
+            cmd: 5,
+            subCmd: subCmd,
+            value: name
+        }))
+    }
+}
+
+
+// Jeden radek seznamu. Jmeno je klic: druhy upload stejneho souboru prijde
+// jako novy cmdBE 1 a ma stary radek prepsat, ne pridat vedle nej.
+// Hledani snese jen casti nazvu a nezalezi na poradi: dotaz se rozseka na
+// slova a job projde, kdyz jsou v jeho jmenu vsechna, kdekoliv. Prazdny
+// dotaz nema zadne slovo, takze projde vsechno.
+function jobMatches(name, query) {
+    const lower = name.toLowerCase()
+
+    return query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(part => part)
+        .every(part => lower.includes(part))
+}
+
+
+// Schova joby, ktere dotazu neodpovidaji. Ten hledany tim zustane jediny
+// videt, takze je rovnou nahore.
+function filterJobs() {
+    for (const row of jobsListedElement.querySelectorAll(".jobRow")) {
+        row.hidden = !jobMatches(row.dataset.name, jobSearchElement.value)
+    }
+}
+
+
+jobSearchElement.addEventListener("input", filterJobs)
+
+
+// Jeden radek seznamu: vlevo jmeno a pod nim tlacitka, vpravo cas, datum
+// a velikost. Jmeno je klic - druhy upload stejneho souboru prijde jako novy
+// cmdBE 1 a ma stary radek prepsat, ne pridat vedle nej.
+//
+// Ikony: kazdy .jobRowIcon je prazdny obal, do ktereho patri SVG. Dokud je
+// prazdny, CSS ho schova, takze rozlozeni sedi i bez nich.
+function loadAddJob(name, date, size, duration) {
+    if (!name) {
+        console.warn("[FE] A job without a name arrived, it was not added to the list.")
+        return
+    }
+
+    // Hlaska "Nothings here yet" je v HTML jako holy text, ne jako element,
+    // takze se musi smazat pri prvnim jobu.
+    if (!jobsListedElement.querySelector(".jobRow")) {
+        jobsListedElement.textContent = ""
+    }
+
+    const old = jobsListedElement.querySelector(`.jobRow[data-name="${CSS.escape(name)}"]`)
+
+    if (old) {
+        old.remove()
+    }
+
+    const row = document.createElement("div")
+    row.className = "jobRow"
+    row.dataset.name = name
+
+    const head = document.createElement("div")
+    head.className = "jobRowHead"
+
+    const label = document.createElement("h3")
+    label.className = "jobRowName"
+    head.append(label)
+
+    const labelIcon = document.createElement("span")
+    labelIcon.className = "jobRowNameIcon"
+    labelIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-notepad-text preview-icon"><path d="M8 2v4"/><path d="M12 2v4"/><path d="M16 2v4"/><rect width="16" height="18" x="4" y="4" rx="2"/><path d="M8 10h6"/><path d="M8 14h8"/><path d="M8 18h5"/></svg>'
+    label.append(labelIcon)
+
+    const labelText = document.createElement("span")
+    labelText.className = "jobRowNameText"
+    labelText.textContent = name
+    label.append(labelText)
+
+    const facts = document.createElement("ul")
+    facts.className = "jobRowFacts"
+    const printed = Number.isFinite(duration)
+
+    facts.append(
+        makeFact("time", printed ? formatDuration(duration) : "—", printed ? "" : "Not printed yet"),
+        makeFact("date", new Date(date).toLocaleDateString()),
+        makeFact("size", formatSize(size))
+    )
+
+    const printButton = document.createElement("button")
+    printButton.type = "button"
+    printButton.className = "jobRowPrint"
+    printButton.append(makeIcon("print"), document.createTextNode("Print"))
+    printButton.addEventListener("click", () => {
+        sendPrint(1, name)
+        print(name)
+    })
+
+    const deleteButton = document.createElement("button")
+    deleteButton.type = "button"
+    deleteButton.className = "jobRowDelete"
+    deleteButton.append(makeIcon("delete"), document.createTextNode("Delete"))
+    deleteButton.addEventListener("click", () => {
+        sendPrint(2, name)
+        row.remove()
+
+        if (!jobsListedElement.querySelector(".jobRow")) {
+            jobsListedElement.textContent = jobsListedEmptyText
+        }
+    })
+
+    row.append(head, facts, printButton, deleteButton)
+    jobsListedElement.prepend(row)
+
+    // Kdyz zrovna neco hledas, novy job se ma chovat stejne jako ostatni.
+    filterJobs()
+}
+
+
+// Ikony do radku seznamu. Sirku, vysku i silu cary jim dava CSS pres
+// [class*="lucide"], takze tady zadne width ani stroke-width nejsou - jinak
+// by byly jine nez zbytek stranky.
+const jobIcons = {
+    print: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-printer" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>`,
+
+    delete: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash" aria-hidden="true"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+
+    time: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hourglass" aria-hidden="true"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>`,
+
+    date: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days" aria-hidden="true"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>`,
+
+    size: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ruler-dimension-line" aria-hidden="true"><path d="M10 15v-3"/><path d="M14 15v-3"/><path d="M18 15v-3"/><path d="M2 8V4"/><path d="M22 6H2"/><path d="M22 8V4"/><path d="M6 15v-3"/><rect x="2" y="12" width="20" height="8" rx="2"/></svg>`
+}
+
+
+// Misto na ikonu. Klic, ktery v jobIcons neni, necha obal prazdny a CSS ho
+// schova - proto se "name" da doplnit pozdeji, aniz by se ted nekde delala
+// mezera.
+function makeIcon(which) {
+    const icon = document.createElement("span")
+    icon.className = "jobRowIcon"
+    icon.dataset.icon = which
+    icon.innerHTML = jobIcons[which] ?? ""
+    return icon
+}
+
+
+function makeFact(which, text, hint = "") {
+    const item = document.createElement("li")
+    item.className = "jobRowFact"
+
+    if (hint) {
+        item.title = hint
+    }
+
+    item.append(makeIcon(which), document.createTextNode(text))
+    return item
+}
+
+
+// Nahrava se pres obycejny multipart POST, ne pres websocket - ten by musel
+// soubor posilat po kouscich a multer na druhe strane uz hotovy je.
+async function uploadJob(file) {
+    if (!file) {
+        return
+    }
+
+    if (!gerberEndings.includes(fileEnding(file.name))) {
+        console.warn(`[FE] ${file.name} is not a gerber, nothing was sent.`)
+        showUploadNote(`"${file.name}" is not a gerber file.`)
+        return
+    }
+
+    const body = new FormData()
+    body.append("gerber", file)
+
+    try {
+        const answer = await fetch("/uploadGerber", { method: "POST", body: body })
+        const text = await answer.json()
+
+        if (!answer.ok) {
+            console.warn(`[FE] Upload of ${file.name} was refused: ${text.answer}`)
+            showUploadNote(text.answer)
+            return
+        }
+
+        // Radek do seznamu nepridava tohle, ale zprava cmdBE 1, kterou
+        // backend posle po ulozeni - at je seznam stejny pro vsechny,
+        // kdo se zrovna divaji.
+        console.log(`[FE] ${file.name} uploaded: ${text.answer}`)
+        showUploadNote("")
+    }
+
+    catch (error) {
+        console.warn(`[FE] Upload of ${file.name} did not go through: ${error.message}`)
+        showUploadNote(`${file.name} could not be uploaded, the backend did not answer.`)
+    }
+}
+
+
+jobUploadElement.addEventListener("change", () => {
+    uploadJob(jobUploadElement.files[0])
+
+    // Bez tohohle by vybrani stejneho souboru podruhe neudelalo zadnou
+    // udalost change a nahrat by uz nesel.
+    jobUploadElement.value = ""
+})
 
 
 
@@ -829,6 +1082,7 @@ function responseHandle(cmd) {
 
 
 const etaValueElement = document.querySelector("#etaValue")
+const jobNameElement = document.querySelector("#jobName")
 
 // Tri casy, ktere jdou poskladat z jednoho cisla od stroje. Vsechny v
 // sekundach a syrove - formatuje se az to, co jde na obrazovku.
@@ -870,6 +1124,9 @@ function formatClock(seconds) {
 // Ram pro spusteni jobu. Odeslani na backend je tvoje, mereni casu potrebuje
 // jen tyhle dva radky - bez nich nema runningSec od ceho pocitat.
 function print(name) {
+    // Dokud nic nebezelo, je v policku vychozi text z atributu default.
+    jobNameElement.textContent = name
+
     jobStartedAtSec = nowInSec()
     ongoingJob = true
     jobTimes.finishInSec = -1
@@ -908,7 +1165,7 @@ function evaluateMessage(messageData) {
             return
         }
 
-        loadAddJob(messageData.job.name, messageData.job.date, messageData.job.size)
+        loadAddJob(messageData.job.name, messageData.job.date, messageData.job.size, messageData.job.duration)
     }
 
     else if (messageData.cmdBE === 2) {
@@ -997,7 +1254,22 @@ webSocket.onclose = (e) => {
 }
 
 
-webSocket.onmessage = (e) => {evaluateMessage(e.data)}
+// e.data je retezec, ne objekt. Bez tohohle parsovani je messageData.cmdBE
+// vzdycky undefined a zprava tise propadne vsemi vetvemi evaluateMessage.
+webSocket.onmessage = (e) => {
+    let messageData
+
+    try {
+        messageData = JSON.parse(e.data)
+    }
+
+    catch {
+        console.warn("[FE] Backend sent something that is not JSON, it was dropped.")
+        return
+    }
+
+    evaluateMessage(messageData)
+}
 
 
 

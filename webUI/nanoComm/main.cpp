@@ -1394,9 +1394,10 @@ struct communicator {
     bool doGcodeTask(gcodeDecoder &decoder) {
         nanoReport curReport = myUART.listenUART();
         int message = myEmergencyUser.readEmergency();
-        myClock.operate();
+        myClock.operate(myTCPUser);
 
         myTCPUser.sendData(curReport);
+        myTCPUser.sendData({1, 163, curReport.position, curReport.z, curReport.speed});
 
         if (message == 4 || message == 5) {
             std::cout << "[GCODE] Stopping current G-code task because emergency command " << message << " was received." << std::endl;

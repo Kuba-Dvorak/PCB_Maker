@@ -307,7 +307,7 @@
           </svg>
         </div>
         <div class="jogSpeed">
-          <h3>Speed Size</h3>
+          <h3>Speed</h3>
           <div class="numberField">
             <input type="number" max="175" min="1" step="1" value="1" id="speedSize">
             <span class="unit">mm/s</span>
@@ -426,12 +426,21 @@
 
   <section class="jobListPart">
     <section class="jobListAdd">
-      <label for="jobUpload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><span>Click to upload gerber</span></label>
-      <input class="jobInput" id="jobUpload" type="file" hidden>
+      <label for="jobUpload"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload" aria-hidden="true"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6"/></svg><span>Click to upload gerber</span></label>
+      <input class="jobInput" id="jobUpload" type="file" accept=".gbr,.ger,.gbrjob,.gtl,.gbl,.gts,.gbs,.gto,.gbo,.gtp,.gbp,.gm1,.gko,.drl,.xln" hidden>
       <div class="jobInputButton" id="jobUploadButton"></div>
+      <p class="jobUploadNote" id="jobUploadNote" hidden></p>
     </section>
     <section class="jobList">
-      <h2 class="jobLabelUp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Uploaded jobs</span></h2>
+      <!-- Nadpis vlevo, hledani vpravo. Odsazeni a linku nese tenhle radek,
+           ne samotny nadpis. -->
+      <div class="jobListHead">
+        <h2 class="jobLabelUp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg><span>Uploaded jobs</span></h2>
+        <div class="jobSearch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <input type="search" id="jobSearch" placeholder="Search" aria-label="Search jobs by name">
+        </div>
+      </div>
       <div id="jobsListed">Nothings here yet</div>
     </section>
   </section>

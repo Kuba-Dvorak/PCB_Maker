@@ -129,6 +129,29 @@ startFileLogging()
 
 const db = new sqlite3.Database(path.join(webUIDir, "database", "gcodes.db"));
 
+
+// Sloupec s delkou posledniho tisku pribyl az pozdeji a tabulka se nikde
+// v kodu nezaklada, takze se dopln tady - na kazde kopii databaze zvlast.
+db.all(`PRAGMA table_info(gcodeList)`, [], (err, columns) => {
+    if (err) {
+        console.error("[JS DB] Job list table could not be read:", err.message)
+        return
+    }
+
+    if (columns.some(column => column.name === "duration")) {
+        return
+    }
+
+    db.run(`ALTER TABLE gcodeList ADD COLUMN duration INTEGER`, (alterErr) => {
+        if (alterErr) {
+            console.error("[JS DB] Duration column could not be added:", alterErr.message)
+            return
+        }
+
+        console.log("[JS DB] Duration column was added to the job list")
+    })
+})
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -277,11 +300,57 @@ const gerberUpload = multer({
 })
 
 
+// Hotovy G-kod se da nahrat i primo, bez gerberu a bez pcb2gcode - treba
+// kdyz si ho nekdo vygeneroval jinde.
+const gcodeExtensions = [
+    ".gcode",
+    ".gco",
+    ".ngc",
+    ".nc",
+    ".tap"
+]
+
+
+function isGcodeName(fileName) {
+    return gcodeExtensions.includes(path.extname(fileName).toLowerCase())
+}
+
+
+const gcodeStorage = multer.diskStorage({
+    // Absolutni cesta, ne "../gcodes". Ta se rozbaluje proti pracovnimu
+    // adresari procesu, takze by soubory koncily jinde podle toho, odkud
+    // se backend pustil - pod systemd treba v "/".
+    destination: gcodeDir,
+    filename: (req, file, cb) => {
+        // basename zahodi pripadne ../ z nazvu, ktery prisel z prohlizece
+        cb(null, path.basename(file.originalname))
+    }
+})
+
+
+const gcodeUpload = multer({
+    storage: gcodeStorage,
+    fileFilter: (req, file, cb) => {
+        if (isGcodeName(file.originalname)) {
+            cb(null, true)
+            return
+        }
+
+        console.warn(`[JS] Upload rejected, not a G-code: ${file.originalname}`)
+        cb(null, false)
+    }
+})
+
+
 // Stav jobu drzi backend, Nano o zadnem "jobu" nevi. Jog se podle toho
 // zamyka, takze to musi byt na jednom miste a ne rozhozene po handlerech.
 let printUnderGoing = false
 let jobPaused = false
 let currentGcodeName = ""
+
+// Kdy job zacal. Az na konci se z toho spocita, jak dlouho trval - driv to
+// nikdo nevi, protoze delka zavisi na tom, co je v souboru.
+let jobStartedAt = 0
 
 
 function sendCMD(cmd) {
@@ -533,7 +602,12 @@ async function startPrint(gerberName) {
         return
     }
 
-    const gcodePath = path.join(gcodeDir, `${gerberName}.gcode`)
+    // Job je bud gerber, ke kteremu se G-kod teprve vyrobi, nebo rovnou
+    // nahrany G-kod. U toho druheho uz soubor lezi v gcodes/ pod svym
+    // vlastnim jmenem a generovat neni z ceho.
+    const uploaded = path.join(gcodeDir, gerberName)
+    const direct = isGcodeName(gerberName) && fs.existsSync(uploaded)
+    const gcodePath = direct ? uploaded : path.join(gcodeDir, `${gerberName}.gcode`)
 
     // Rozhoduje soubor na disku, ne priznak v databazi. Prepocitat G-kod
     // znovu je levnejsi nez poslat stroji cestu k necemu, co tam neni.
@@ -566,7 +640,7 @@ function deletePrint(name) {
         return
     }
 
-    for (const filePath of [path.join(gerberDir, name), path.join(gcodeDir, `${name}.gcode`)]) {
+    for (const filePath of [path.join(gerberDir, name), path.join(gcodeDir, name), path.join(gcodeDir, `${name}.gcode`)]) {
         if (fs.existsSync(filePath)) {
             fs.rmSync(filePath, { force: true })
             console.log(`[JS] Deleted ${filePath}`)
@@ -664,8 +738,79 @@ async function resolveMessage(messageData) {
 // message ani close nejsou udalosti serveru, ale jednotliveho spojeni -
 // na wss se da chytit jen 'connection'. Predava se funkce, ne jeji vysledek:
 // resolveMessage(data) by se zavolalo hned a navic s necim, co tady neexistuje.
-wss.on('connection', client => {
+// Job dobehl do konce souboru. Jmeno i zacatek se berou z toho, co si
+// backend pamatuje od startu tisku - v reportu nic z toho neni.
+function finishJob() {
+    const name = currentGcodeName
+    const startedAt = jobStartedAt
+
+    setJobRunning(false)
+
+    if (!name || !startedAt) {
+        console.warn("[JS] A job finished, but the backend did not know which one, no duration was saved")
+        return
+    }
+
+    const duration = Math.round((Date.now() - startedAt) / 1000)
+
+    db.run(`UPDATE gcodeList SET duration = ? WHERE name = ?`, [duration, name], (err) => {
+        if (err) {
+            console.error("[JS DB] Duration could not be saved:", err.message)
+            return
+        }
+
+        console.log(`[JS] Job ${name} took ${duration} s`)
+        sendJobRow(name)
+    })
+}
+
+
+// Posle jeden radek seznamu na frontend. Ten si podle jmena prepise ten svuj,
+// takze se tim da doplnit cas, aniz by se posilal cely seznam znovu.
+function sendJobRow(name) {
+    db.get(`SELECT name, date, gsize, duration FROM gcodeList WHERE name = ?`, [name], (err, row) => {
+        if (err || !row) {
+            console.error("[JS DB] Job row could not be read:", err ? err.message : "no such row")
+            return
+        }
+
+        sendMessageFe({
+            cmdBE: 1,
+            job: { name: row.name, date: row.date, size: row.gsize, duration: row.duration }
+        })
+    })
+}
+
+
+// Cely seznam jobu z databaze, nejnovejsi nahore.
+function readJobList() {
+    return new Promise((resolve) => {
+        db.all(`SELECT name, date, gsize, duration FROM gcodeList ORDER BY date DESC`, [], (err, rows) => {
+            if (err) {
+                console.error("[JS DB] Job list could not be read:", err.message)
+                resolve([])
+                return
+            }
+
+            resolve(rows || [])
+        })
+    })
+}
+
+
+wss.on('connection', async client => {
     console.log('[JS] Frontend connected')
+
+    // Seznam dostane jen ten, kdo se prave pripojil. Ostatni uz ho maji a
+    // broadcastem by si ho zdvojili.
+    for (const row of await readJobList()) {
+        if (client.readyState === 1) {
+            client.send(JSON.stringify({
+                cmdBE: 1,
+                job: { name: row.name, date: row.date, size: row.gsize, duration: row.duration }
+            }))
+        }
+    }
 
     client.on('message', data => resolveMessage(data))
 
@@ -718,6 +863,7 @@ function setJobRunning(running, name = "") {
 
     printUnderGoing = running
     currentGcodeName = running ? name : ""
+    jobStartedAt = running ? Date.now() : 0
 
     if (!running) {
         setJobPaused(false)
@@ -757,7 +903,14 @@ function handleNanoLine(line) {
                 setJobRunning(false)
             }
 
-            if (message.status === 1 && (message.error === 10 || message.error === 11)) {
+            // 11 je dojeti az na konec souboru, jen u nej ma smysl ukladat
+            // delku. 10 znamena, ze job umrel driv, takze by to byl cas
+            // nedodelane prace.
+            if (message.status === 1 && message.error === 11) {
+                finishJob()
+            }
+
+            if (message.status === 1 && message.error === 10) {
                 setJobRunning(false)
             }
 
@@ -953,9 +1106,80 @@ app.post("/uploadGerber", gerberUpload.single("gerber"), async (req, res) => {
         })
     }
 
-    console.log(`[JS] Gerber: ${req.file.originalname}, was uploaded`)
+    // Do seznamu patri i gerber. G-kod k nemu jeste neexistuje, ten se
+    // vyrobi az pri tisku - ale job uz je to ted.
+    const name = req.file.filename
+    const date = Date.now()
+    const size = req.file.size
+
+    if (!await rememberGcode(name, date, size)) {
+        return res.status(500).json({
+            answer: "Gerber was saved on disk, but it could not be written into the job list"
+        })
+    }
+
+    console.log(`[JS] Gerber: ${name}, was uploaded, ${size} B`)
+    sendMessageFe({ cmdBE: 1, job: { name: name, date: date, size: size } })
+
     res.json({
         answer: "Gerber upload was succesfull"
+    })
+})
+
+
+// Jmeno je v tabulce unikatni, takze druhy upload stejneho jmena radek
+// prepise - soubor na disku se prepsal taky, dva zaznamy na jeden soubor
+// by si jen odporovaly.
+function rememberGcode(name, date, size) {
+    return new Promise((resolve) => {
+        db.run(
+            `INSERT INTO gcodeList (name, date, gsize, printed) VALUES (?, ?, ?, 0)
+             ON CONFLICT(name) DO UPDATE SET date = excluded.date, gsize = excluded.gsize`,
+            [name, date, size],
+            (err) => {
+                if (err) {
+                    console.error("[JS DB] G-code could not be written into the list:", err.message)
+                    resolve(false)
+                    return
+                }
+
+                resolve(true)
+            }
+        )
+    })
+}
+
+
+app.post("/uploadGcode", gcodeUpload.single("gcode"), async (req, res) => {
+    // fileFilter soubor zahodil -> multer nenastavi req.file
+    if (!req.file) {
+        console.warn("[JS] G-code upload was rejected by the file filter")
+        return res.status(400).json({
+            answer: `Rejected: not a G-code file. Allowed: ${gcodeExtensions.join(", ")}`
+        })
+    }
+
+    // Datum i velikost bere backend ze sebe, ne z tela requestu. Driv je
+    // posilal prohlizec zvlast na /newDBGcodeIns a mohly rict cokoliv.
+    const name = req.file.filename
+    const date = Date.now()
+    const size = req.file.size
+
+    const stored = await rememberGcode(name, date, size)
+
+    if (!stored) {
+        return res.status(500).json({
+            answer: "G-code was saved on disk, but it could not be written into the job list"
+        })
+    }
+
+    console.log(`[JS] G-code: ${name}, was uploaded, ${size} B`)
+
+    // Seznam jobu na frontendu se tim doplni hned, bez refreshe stranky.
+    sendMessageFe({ cmdBE: 1, job: { name: name, date: date, size: size } })
+
+    res.json({
+        answer: "Gcode upload was succesfull"
     })
 })
 

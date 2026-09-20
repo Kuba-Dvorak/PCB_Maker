@@ -37,7 +37,7 @@ main > *,
 
 :root {
     --partsDistances: 2rem;
-    --rightPartWidth: 20rem;
+    --rightPartWidth: 30rem;
 
     /* --- plochy a text --------------------------------------------------
        --bgColor je pozadi stranky, --cardBGColor panely a lista,
@@ -157,7 +157,7 @@ main > *,
     --canvasColor: #ffffff;
 
     /* Spolecna sirka krizatka a panelu rychlosti pod nim. */
-    --jogColWidth: 25rem;
+    --jogColWidth: 27rem;
 
     /* Sirka leveho sloupce a nahledu v job panelu. */
     --jobLeftWidth: 20rem;
@@ -268,8 +268,15 @@ main > *,
 .jogSpeeds > .jogControlSpeed {
     display: grid;
     grid-template-columns: auto auto auto minmax(0, auto);
-    gap: var(--defaultMargin);
+    /* Mezi radky velka mezera, mezi sloupci mala: ctyri sloupce presne
+       vyplnily sirku panelu a na podstavec uz nezbyvalo nic. Uzsi mezery
+       posunou popisek, policko i sipky doleva a vpravo zbyde vzduch. */
+    gap: var(--defaultMargin) var(--defaultPadding);
+    /* start, ne space-between: mezery mezi sloupci maji byt vsude stejne
+       (jeden --defaultMargin), ne roztazene podle sirky panelu. Volne misto
+       tim zbyde za podstavcem, coz je prave ta mezera od praveho ramecku. */
     justify-content: start;
+    padding-inline: var(--defaultPadding);
     justify-items: start;
     align-items: center;
     width: 100%;
@@ -410,7 +417,9 @@ main {
 
 .jobList {
     overflow-y: auto;
-    padding: var(--defaultPadding);
+    /* Zadny bocni padding: linky mezi jobami maji jit pres celou sirku
+       praveho bloku, takze odsazeni si nese kazdy radek sam. */
+    padding: 0;
 }
 
 /*jog part*/
@@ -709,6 +718,10 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     align-items: center;
     gap: var(--defaultPadding);
     justify-content: center;
+    /* Nadpis ma vychozi margin pres 20 px nahoru i dolu. Telemetrie ma nize
+       max-height podle platna, takze tech 44 px slo primo na ukor radku
+       s hodnotami - Spindle vyjizdel ven. */
+    margin: 0;
 }
 
 
@@ -843,6 +856,40 @@ body[data-joblist="closed"] .jobListPart { display: none; }
 .jogSpeed,
 .jogSpindle { justify-items: center; }
 
+/* Vsechna tri policka sdili jeden sloupec mrizky, ale kazde si bralo jen
+   svoji sirku - "RPM" je delsi nez "mm", takze byly ruzne siroke. stretch
+   je roztahne na sirku sloupce, tedy na sirku toho nejsirsiho. */
+.jogControlSpeed .numberField { justify-self: stretch; }
+
+/* Podstavec pod menici se kresby. Bez nej splyvaji s pozadim panelu, takhle
+   je nese plocha v barve tlacitek a kresba na ni vynikne. Vsechny tri maji
+   stejnou velikost, at to je jedna sada - kresby se do nich vejdou samy,
+   protoze SVG s viewBoxem se vzdycky vejde a vystredi.
+
+   Selektory jsou dvoutridni schvalne: nize je ".jogSpeeds svg { height: auto }",
+   ktere ma vyssi specificitu nez samotna trida a vysku by prebilo zpatky.
+   box-sizing zustava border-box z globalniho resetu, jinak by se padding
+   s rameckem pricetly ke 100 % a podstavce by vylezly z panelu. */
+.jogSpeeds .stepSizeArrow,
+.jogSpeeds .speedSizeArrow,
+.jogSpeeds .spindleSizeArrow {
+    /* max-width: none prebiji ".jogSpeeds svg { max-width: 100% }" - to je
+       proti prilis sirokym kresbam, ale tady uz sirku drzi podstavec. */
+    max-width: none;
+    width: 5.5em;
+    height: 4.5em;
+    /* Sipky u policka stoji hned vedle, bez tehle mezery se podstavec lepi
+       primo na ne. */
+    margin-left: var(--defaultPadding);
+    padding: var(--defaultPadding);
+    /* Stejne jako tlacitka jogpadu: vypln --buttonColor, ramecek
+       --borderColor. --buttonBorderColor je skoro cerny a na podstavci
+       vypadal jako obtah. */
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    border-radius: var(--defaultRadius);
+    background-color: var(--buttonColor);
+}
+
 /* Tlacitka bez popisku nesou vyznam jen ikonou, takze ta musi byt vetsi
    nez ikona doprovazejici text. */
 .jobButtons [class*="lucide"] {
@@ -892,6 +939,7 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     min-height: 4.5em;
     border: none;
     border-radius: 0;
+    gap: var(--defaultPadding);
 }
 
 @media (max-width: 800px) {
@@ -912,6 +960,53 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     margin: 0;
     font-size: 1.5rem;
 }
+
+/* Hlavicka seznamu si nese odsazeni a linku pod sebou - seznam uz zadny
+   bocni padding nema, aby linky mezi jobami sly pres cely pravy blok. */
+.jobListHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--defaultMargin);
+    padding: var(--defaultPadding) var(--defaultMargin);
+    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
+}
+
+/* Nadpis je jinak vycentrovany jako ostatni, tady ma byt u leveho okraje. */
+.jobLabelUp {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+/* Hledani vypada jako policka rychlosti, at je to jedna stranka. */
+.jobSearch {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+    min-width: 0;
+    padding: var(--defaultPadding);
+    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    border-radius: var(--defaultRadius);
+    background-color: var(--bgColor);
+    color: var(--fieldTextColor);
+}
+
+.jobSearch:focus-within { box-shadow: 0 0 0 3px var(--focusRing); }
+
+.jobSearch input {
+    width: 7em;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--fieldTextColor);
+    font: inherit;
+}
+
+.jobSearch input:focus-visible { outline: none; }
+
+/* Radek ma display: grid, takze by ho samotny atribut hidden neschoval. */
+.jobRow[hidden] { display: none; }
 
 .jogSteps p,
 .jogSpeed p,
@@ -1672,4 +1767,117 @@ textarea { font-family: inherit; }
     /* Na uzko uz se popisek vedle policka nevejde, jde nad nej. */
     .settingsRow { grid-template-columns: minmax(0, 1fr) max-content; }
     .settingsRow label { grid-column: 1 / -1; }
+}
+
+
+/* --- radky seznamu jobu ------------------------------------------------
+   Polozka je pruh pres celou sirku panelu oddeleny linkou, ne karta.
+   Vlevo jmeno a pod nim tlacitka, vpravo cas, datum a velikost pod sebou.
+   Odsazeni nese radek, ne seznam - jinak by linka nedosahla k okrajum. */
+.jobRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas:
+        "head  facts"
+        "print facts"
+        "del   facts";
+    gap: var(--defaultPadding) var(--defaultMargin);
+    padding: var(--defaultMargin);
+    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    text-align: left;
+}
+
+.jobRowHead  { grid-area: head; }
+.jobRowFacts { grid-area: facts; }
+.jobRowPrint { grid-area: print; }
+.jobRowDelete { grid-area: del; }
+
+.jobRowHead {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+}
+
+/* Dlouhy nazev souboru nesmi roztahnout cely panel. Nadpis ma vychozi
+   margin 1em nahoru i dolu, ten by radek zbytecne roztahl. */
+.jobRowName {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--textColor);
+}
+
+.jobRowNameIcon {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+}
+
+/* space-between, ne start: udaje maji vyplnit stejnou vysku, jakou vlevo
+   zaberou nazev a obe tlacitka - jinak by se skrcily nahore a pod nimi by
+   zustala prazdna dira. */
+.jobRowFacts {
+    display: grid;
+    align-content: space-between;
+    gap: var(--defaultPadding);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--textMutedColor);
+}
+
+.jobRowFact {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+}
+
+/* Misto na ikonu. Dokud do nej nic nevlozis, nezabira nic - rozlozeni
+   proto sedi i bez ikon. */
+.jobRowIcon {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+}
+
+.jobRowIcon:empty { display: none; }
+
+/* justify-self: start, aby si tlacitka nebrala cely sloupec - roztazena
+   brala misto jmenu i udajum vpravo. min-width je drzi stejne siroka: bez
+   nej je Delete o slovo sirsi nez Print. */
+.jobRowPrint,
+.jobRowDelete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: start;
+    gap: var(--defaultPadding);
+    min-width: 10em;
+}
+
+/* Stejny ramecek jako maji tlacitka jogpadu. Prepisuje se promenna, ne
+   rovnou border-color: obecne pravidlo button:not(...) ma vyssi specificitu
+   nez samotna trida a barvu by si vzalo zpatky. */
+.jobRowPrint {
+    --buttonBorderColor: var(--borderColor);
+}
+
+/* Stejna cervena jako stop. Prepisuji se promenne, ne rovnou barvy - obecna
+   pravidla pro tlacitka si je pak precti sama i s prechodem, stejne jako
+   u #stopButton. */
+.jobRowDelete {
+    --buttonColor: var(--stopColor);
+    --hoverColor: var(--stopHoverColor);
+    --buttonBorderColor: var(--stopBorderColor);
+    --buttonTextColor: var(--stopTextColor);
+}
+
+/* Hlaska pod tlacitkem nahravani - proc se soubor nenahral. */
+.jobUploadNote {
+    margin: var(--defaultPadding) 0 0 0;
+    color: var(--textMutedColor);
+    text-align: center;
+    overflow-wrap: anywhere;
 }
