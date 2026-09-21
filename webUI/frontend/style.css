@@ -69,7 +69,10 @@ main > *,
 
     --bgColor: #11131F;
     --borderColor: #304384;
-    --borderSize: .2em;
+    /* V px, ne v em: pri skalovani podle okna vychazel ramecek na necele
+       pixely (2.8 px) a Chrome pak kresli zaoblene rohy po schodech - v rohu
+       je carka viditelne tlustsi nez podel hran. */
+    --borderSize: 3px;
     --defaultPadding: .6em;
     --defaultMargin: 1em;
     --defaultRadius: .625em;
@@ -181,6 +184,16 @@ main > *,
    Sirku leveho sloupce ridi --jogColWidth v :root vyse.
    ====================================================================== */
 
+/* Cela jogovaci cast se ma vejit na jednu obrazovku a na vetsim monitoru
+   vypadat stejne, jen vetsi. Vsechny rozmery v tomhle souboru jsou v em/rem,
+   takze staci skalovat zaklad: nav a jogPart dohromady meri 70.5 rem, takze
+   pri font-size = 100dvh / 71 vyplni presne vysku okna. Pomery a poloha
+   panelu tim zustanou na kazdem monitoru stejne, meni se jen velikost.
+   max() je pojistka pro hodne nizka okna, at text neskonci na par pixelech. */
+@media (min-width: 801px) {
+    html { font-size: max(11px, calc(100dvh / 71)); }
+}
+
 @media (min-width: 801px) {
     /* Mapa rozlozeni - ta tabulka dole vypada jako ta skica. Kdyz chces
        neco presunout, staci prehodit jmeno v te mape, cisla sloupcu
@@ -193,13 +206,16 @@ main > *,
         /* Strop je na sloupci, ne na platnu: kdyz sedi na platnu, stopa
            sezere celou sirku a platno v ni zustane vlevo s dirou vpravo.
            Takhle se omezi stopa a cely grid se da vycentrovat. */
-        grid-template-columns: var(--jogColWidth) minmax(0, 84rem);
+        /* 56rem je sirka, kterou platno dostane na 1920 - nad tim uz neroste,
+           takze na 2560 vypada stranka stejne, jen se cely blok vystredi.
+           Bez stropu si platno vzalo 1344 px a pomery se rozesly. */
+        grid-template-columns: var(--jogColWidth) minmax(0, 56rem);
         grid-template-rows: auto auto auto;
         justify-content: center;
         grid-template-areas:
-            "pad      canvas"
-            "speeds   canvas"
-            "endstops endstops";
+            "pad    canvas"
+            "speeds canvas"
+            "speeds endstops";
     }
 
     .jogPart > .jogButGrid { grid-area: pad; }
@@ -213,8 +229,11 @@ main > *,
        by z platna s danou vyskou spocitalo nesmyslnou sirku.
        max-width je strop na sirsich monitorech. */
     .jogPart > .jogModel {
-        aspect-ratio: 16 / 10;
+        aspect-ratio: 1.45;
         align-self: start;
+        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+        border-radius: var(--defaultRadius);
+        overflow: hidden;
         min-width: 0;
         min-height: 0;
         margin: 0;
@@ -227,12 +246,22 @@ main > *,
         max-width: none;
     }
 
-    /* Endstopy pres oba sloupce a na stredu celeho gridu. Mrizka tlacitek
-       sedi az na .endstopsList - .endstops je od pridani nadpisu jen obal. */
+    /* Endstopy uz nejsou pres oba sloupce, ale pod platnem - tam, kde driv
+       zustavala prazdna plocha. Panel rychlosti vedle nich saha pres oba
+       radky, proto align-self: start, aby si drzel svoji vysku. */
     .jogPart > .endstops {
         width: min(100%, 38rem);
-        justify-self: center;
+        /* start, ne center: vystredene v sirokem sloupci platna odskocily od
+           panelu rychlosti vedle nich. Takhle stoji hned u nej. */
+        justify-self: start;
     }
+
+    /* Panel rychlosti se roztahne pres oba radky, ktere zabira, takze jeho
+       spodek lici se spodkem endstopu vedle nej a cela jog cast tvori
+       vykousnuty obdelnik. Obsah si uvnitr drzi stred (align-content: center
+       v zakladnim pravidle). Musi to byt tady a dvoutridne: nize je
+       ".jogSpeeds { align-self: center }", ktere by se jinak prosadilo. */
+    .jogPart > .jogSpeeds { align-self: stretch; }
 
     .endstops > .endstopsList {
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -735,9 +764,11 @@ body[data-joblist="closed"] .jobListPart { display: none; }
 }
 
 
+/* Ramecek ani zaobleni nedrzi canvas, ale .jogModel kolem nej. WebGL obsah
+   je vlastni vrstva a Chrome ji do zaoblenych rohu orezava po schodech -
+   v rozich pak carka vypada okousana. Obycejny div s overflow: hidden
+   orizne ciste. */
 .jogModelCanvas {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
     width: 100%;
     aspect-ratio: 2 / 1;
     max-width: 1460px;
@@ -826,7 +857,7 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     background-color: var(--cardBGColor);
 }
 
-.jogModelCanvas,
+.jogModel,
 .jobPicture canvas { box-shadow: var(--shadow); }
 
 .jogName,
