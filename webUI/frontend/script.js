@@ -2,6 +2,71 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 
 
+//job canvas konstanty ----------------------------------------------------------------------------------------
+
+// Rozmery desky v mm. Zatim cely pracovni prostor stroje (MAX_X 60, MAX_Y 80
+// v nanoCode/src/main.cpp). Az budes frezovat mensi desku, prepis rozmery
+// i polohu jejiho leveho dolniho rohu ve stroji - reporty chodi v souradnicich
+// stroje, ne desky.
+const boardWidthMm = 60
+const boardHeightMm = 80
+const boardOriginXMm = 0
+const boardOriginYMm = 0
+
+// Na sirku: delsi osa Y stroje jde vodorovne. Je to otoceni o 90 stupnu,
+// ne zrcadleni - deska vypada stejne, jako kdyz ji otocis v ruce.
+const jobCanvasLandscape = true
+
+// Kolik pixelu platna pripada na milimetr. Na strance se platno zmensi samo,
+// tohle je jen to, jak jemne se do nej kresli.
+const jobCanvasPxPerMm = 10
+
+// Sirka cary = sirka toho, co hrot odfrezuje.
+const toolWidthMm = 0.6
+
+// Nad touhle vyskou hrot nerez. Rezna hloubka je s korekci naklonu 1.2 az
+// 2.2 mm (cutZForX v nanoComm), prejezdy jedou na zsafe - 3 mm to oddeli
+// s rezervou na obe strany.
+const zDig = 3
+
+const jobCanvasColor = "#c8803a"    // med
+const jobLineColor = "#1e2a1a"      // odfrezovano az na podklad
+
+
+
+//antispam tlacitek ----------------------------------------------------------------------------------------
+
+// Stejne tlacitko jde zmacknout nejvys jednou za tolik ms. Kazdy klik jogu
+// nebo tisku je prikaz pro stroj a nanoComm dalsi prikaz na obsazeny UART
+// stejne zahodi (status 1, error 2) - rychle klikani nic nezrychli.
+const buttonCooldownMs = 300
+
+const lastClickAt = new WeakMap()
+
+
+// Hlida se ve fazi capture na dokumentu, tedy driv, nez klik dojde
+// k listenerum samotneho tlacitka, a stopImmediatePropagation ho k nim uz
+// nepusti. Sipky u policek jsou vyjmute, maji vlastni drzeni.
+document.addEventListener("click", event => {
+    const button = event.target.closest("button")
+
+    if (!button || button.classList.contains("stepArrow")) {
+        return
+    }
+
+    const now = performance.now()
+
+    if (now - (lastClickAt.get(button) ?? -Infinity) < buttonCooldownMs) {
+        event.stopImmediatePropagation()
+        event.preventDefault()
+        console.warn(`[FE] ${button.id || button.textContent.trim()} was clicked again within ${buttonCooldownMs} ms, the click was ignored.`)
+        return
+    }
+
+    lastClickAt.set(button, now)
+}, true)
+
+
 //background
 const main = document.querySelector('main')
 //main.style.backgroundImage = "url('./backgrounds-default/ComplexGraph.png')"
@@ -940,6 +1005,75 @@ jobUploadElement.addEventListener("change", () => {
 
 
 
+//job canvas ----------------------------------------------------------------------------------------
+
+const jobCanvas = document.querySelector("#pictureJob")
+const jobContext = jobCanvas.getContext("2d")
+
+// Poloha, ze ktere vede dalsi cara. null = job prave zacal a prvni bod jeste
+// nema odkud.
+let lastReport = null
+
+// Buffer podle rozmeru desky - platno si tim nese i jeji pomer stran a CSS
+// ho uz jen zmensi.
+jobCanvas.width = (jobCanvasLandscape ? boardHeightMm : boardWidthMm) * jobCanvasPxPerMm
+jobCanvas.height = (jobCanvasLandscape ? boardWidthMm : boardHeightMm) * jobCanvasPxPerMm
+
+
+// Souradnice stroje v mm na pixely platna.
+function toCanvas(position) {
+    const x = (position.x - boardOriginXMm) * jobCanvasPxPerMm
+    const y = (position.y - boardOriginYMm) * jobCanvasPxPerMm
+
+    // Na sirku: Y stroje doprava, X dolu.
+    if (jobCanvasLandscape) {
+        return [y, x]
+    }
+
+    // Na vysku: X doprava, Y nahoru - na platne ale Y roste dolu.
+    return [x, jobCanvas.height - y]
+}
+
+
+// Novy job = cista deska. Kulate konce, aby na sebe navazujici usecky
+// nedelaly v ohybech zuby.
+function resetJobCanvas() {
+    lastReport = null
+
+    jobContext.fillStyle = jobCanvasColor
+    jobContext.fillRect(0, 0, jobCanvas.width, jobCanvas.height)
+
+    jobContext.strokeStyle = jobLineColor
+    jobContext.lineWidth = toolWidthMm * jobCanvasPxPerMm
+    jobContext.lineCap = "round"
+    jobContext.lineJoin = "round"
+}
+
+
+// Cara z posledni polohy do nove. Globalni lastReport se tu nemeni - tady
+// je jeste potreba ta stara poloha, prepise ho az ten, kdo makeLine vola.
+function makeLine(report) {
+    if (!lastReport) {
+        return
+    }
+
+    // Staci jeden konec nad zDig: presun do vysky nebo z ni je zvednuti
+    // nebo zanoreni, ne rez.
+    if (lastReport.z > zDig || report.z > zDig) {
+        return
+    }
+
+    jobContext.beginPath()
+    jobContext.moveTo(...toCanvas(lastReport.position))
+    jobContext.lineTo(...toCanvas(report.position))
+    jobContext.stroke()
+}
+
+
+resetJobCanvas()
+
+
+
 //report handlerers -----------------------------------------------------------------
 
 
@@ -1028,7 +1162,8 @@ function handleReport(report) {
 //tohle hybe
 function preReportHandle(report) {
     if (ongoingJob) {
-        //kresleni do canvasu, jeste neimplementovane
+        makeLine(report)
+        lastReport = report
     }
     updatePosition(report.x, report.y, report.z, report.speed)
 }
@@ -1126,6 +1261,7 @@ function formatClock(seconds) {
 function print(name) {
     // Dokud nic nebezelo, je v policku vychozi text z atributu default.
     jobNameElement.textContent = name
+    resetJobCanvas()
 
     jobStartedAtSec = nowInSec()
     ongoingJob = true

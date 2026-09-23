@@ -1,96 +1,74 @@
-/* Bez tohohle se padding a border pricitaji k sirce, takze kazdy ramecek
-   v uzkem sloupci precuhne prave o svuj padding + border. */
-*, *::before, *::after { box-sizing: border-box; }
+/* ======================================================================
+   CNC Control - styly
+   ----------------------------------------------------------------------
+   Poradi: tokeny -> reset -> spolecne vzory -> kostra stranky -> jog cast
+   -> job cast -> seznam jobu -> popup -> stavove barvy -> mobil.
 
-/* Lucide ikony maji v atributech width/height 60, coz je vedle textu obr.
-   Velikost drzi pismo, at ikona sedi na radku s nim. */
-[class*="lucide"] {
-    flex: 0 0 auto;
-    width: 1.35em;
-    height: 1.35em;
-}
-
-/* Obsah tlacitka na stred a ikona vedle textu, ne pod nim. */
-button,
-.jobListAdd label {
-    display: inline-flex;
-    gap: .45em;
-    align-items: center;
-    justify-content: center;
-    padding: var(--defaultPadding);
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    text-align: center;
-}
-
-/* Polozka gridu ma min-width: auto, takze se sama nesmrskne pod sirku sveho
-   obsahu ani ve sloupci, ktery uz zuzit jde. Bez tohohle precuhne cely jog
-   panel na uzkem displeji ven z obrazovky. */
-main > *,
-.upNav > *,
-.jogPart > *,
-.jogSpeeds > * { min-width: 0; }
-
-/* Cislo bez sirky je v prohlizeci siroke na 20 znaku, coz je na telefonu
-   skoro polovina displeje. */
-.jogSpeeds input[type="number"] { width: 100%; min-width: 0; }
+   Vsechny rozmery jsou v em/rem. Diky tomu staci skalovat jeden root
+   font-size a cela stranka se zvetsi nebo zmensi se zachovanymi pomery.
+   ====================================================================== */
 
 :root {
-    --partsDistances: 2rem;
-    --rightPartWidth: 30rem;
-
-    /* --- plochy a text --------------------------------------------------
-       --bgColor je pozadi stranky, --cardBGColor panely a lista,
-       --canvasColor platna a policka. Text ma hlavni a tlumenou variantu;
-       tlumena zatim dedi hlavni, takze se vizualne nic nemeni - az je
-       budes chtit odlisit, meni se to tady.
-       Stavove barvy (ok/bad/unknown, endstopy) jsou ve vlastni skupine niz
-       a zustavaji - ty nesou vyznam, ne jen vzhled. */
-    /* --- pismo ----------------------------------------------------------
+    /* --- pismo ---------------------------------------------------------
        Nunito se nacita <link>em v index.html. Zalozni pismo za nim neni
-       kosmetika: kdyz je RPi bez site, Google Fonts se nestahne a stranka
-       musi zustat citelna. */
+       kosmetika: kdyz je RPi bez site, Google Fonts se nestahne. */
     --fontFamily: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
+    /* --- plochy a text -------------------------------------------------
+       --bgColor pozadi stranky a policek, --cardBGColor panely a lista,
+       --canvasColor platna. */
+    --bgColor: #11131F;
+    --cardBGColor: #11131F;
+    --canvasColor: #ffffff;
     --textColor: #9EB1FF;
     --textMutedColor: var(--textColor);
-    --focusRing: #00000040;
-
-    /* --- jas pozadi ------------------------------------------------------
-       100 % = obrazek tak, jak je. Niz se pres nej prekryva cerna, aby
-       panely nad nim zustaly citelne. Filtr to zamerne neni - ten by
-       stmavil i obsah, tohle je dalsi vrstva pozadi pod nim. */
-    --bgBrightness: 25%;
-    --bgDim: rgb(0 0 0 / calc(100% - var(--bgBrightness)));
-
-    /* Text uvnitr policek. Lezi na --canvasColor, ne na pozadi stranky,
-       takze nesmi jit s --textColor do svetla. */
     --fieldTextColor: #9EB1FF;
 
-    --bgColor: #11131F;
+    /* Jas pozadi: 100 % = obrazek tak, jak je. Niz se pres nej prekryva
+       cerna, aby panely nad nim zustaly citelne. Filtr to zamerne neni -
+       ten by stmavil i obsah. */
+    --bgBrightness: 25%;
+    --bgDim: rgb(0 0 0 / calc(100% - var(--bgBrightness)));
+    --bgImage: url('./backgrounds-default/ComplexGraph.png');
+
+    /* --- ramecky, mezery, stiny ---------------------------------------- */
     --borderColor: #304384;
+    --defaultSolid: solid;
     /* V px, ne v em: pri skalovani podle okna vychazel ramecek na necele
-       pixely (2.8 px) a Chrome pak kresli zaoblene rohy po schodech - v rohu
-       je carka viditelne tlustsi nez podel hran. */
+       pixely a Chrome pak kresli zaoblene rohy po schodech. */
     --borderSize: 3px;
+    /* Cely ramecek jednou promennou - pouziva ho pres deset pravidel. */
+    --border: var(--borderColor) var(--defaultSolid) var(--borderSize);
+    --defaultRadius: .625em;
+
     --defaultPadding: .6em;
     --defaultMargin: 1em;
-    --defaultRadius: .625em;
-    --defaultSolid: solid;
-    --maxWidth: 90%;
-    --maxHeight: 90%;
+    --partsDistances: 2rem;
 
-    /* --- tlacitka ------------------------------------------------------
-       --buttonColor je pozadi, --buttonTextColor obsah, --hoverColor
-       pozadi pri najeti. Ramecek a doba prechodu tu driv nebyly. */
+    --shadow: 0 1px 2px #00000026, 0 6px 16px #0000001f;
+    --shadowStrong: 0 2px 4px #0000003d, 0 10px 22px #00000038;
+    --focusRing: #00000040;
+    --focusShadow: 0 0 0 3px var(--focusRing);
+
+    /* --- tlacitka ------------------------------------------------------- */
+    --buttonColor: #182449;
+    --buttonTextColor: #9EB1FF;
     --buttonBorderColor: #0a0b0f;
+    --hoverColor: #5B5BD6;
     --buttonTransition: .15s;
 
-    /* Sila cary v ikonach. V em, takze jde s velikosti textu vedle ni.
+    /* --- ikony ----------------------------------------------------------
+       Sila cary v em, takze jde s velikosti textu vedle ikony.
        non-scaling-stroke k tomu zaridi, ze se bere jako pixely na
-       obrazovce a ne jako jednotky viewBoxu - bez toho ma vetsi ikona
-       silnejsi caru, i kdyz stoji u stejne velkeho textu. */
+       obrazovce, ne jako jednotky viewBoxu. */
     --iconStroke: .11em;
+    --iconSize: 1.35em;
+    /* Mezera mezi ikonou a textem v tlacitku je uzsi nez --defaultPadding,
+       tlacitko je mensi utvar nez panel. */
+    --buttonGap: .45em;
+    --iconSizeJog: 2em;
+    --iconSizeJob: 1.7em;
+    --navSymbolSize: 42px;
 
     /* --- sipky u policek rychlosti --------------------------------------
        Vlastni sada, zamerne oddelena od tlacitek: sipky nemaji pozadi ani
@@ -102,30 +80,65 @@ main > *,
     --stepArrowPress: .9;
     --stepArrowTransition: .18s;
 
-    --buttonColor: #182449;
-    --buttonTextColor: #9EB1FF;
-    --hoverColor: #5B5BD6;
-    --buttonMinimalSize: 7em;
-    --buttonMaximalSize: 15em;
-    
+    /* --- rozmery rozlozeni ----------------------------------------------
+       --fitDivisor: nav a jog cast dohromady meri tolik rem, takze pri
+       font-size = 100dvh / fitDivisor vyplni presne vysku okna. Kdyz do jog
+       casti neco pribude nebo ubude, meni se tohle jedno cislo. */
+    --fitDivisor: 71;
+    --jogColWidth: 27rem;        /* krizatko a rychlosti pod nim */
+    --jogCanvasMax: 56rem;       /* strop platna, nad nim uz jen centruje */
+    --jogCanvasRatio: 1.45;
+    --jogPadCellMin: 4.2em;
+    --speedsMaxWidth: 32rem;
+    --speedIconWidth: 5.5em;     /* podstavec pod kresbami rychlosti */
+    --speedIconHeight: 4.5em;
+    --endstopsMaxWidth: 38rem;
+    --endstopRowHeight: 5rem;
+    --endstopRowHeightMobile: 3.5rem;
 
-    /* Obrazky u rychlosti. Kazdy ma svou promennou, aby je sel JS
-       prebarvovat podle hodnoty v policku vedle - staci prepsat promennou
-       na tom jednom SVG, obecne pravidlo se nemusi hledat. */
+    --rightPartWidth: 30rem;     /* seznam jobu */
+    --searchWidth: 7em;
+    --jobRowButtonMin: 10em;
+    --uploadMinHeight: 4.5em;
+
+    --jobLeftWidth: 20rem;       /* job cast pod jogem */
+    --jobCanvasWidth: 40rem;
+    --jobPartMaxWidth: 104rem;
+    --jobButtonsMaxWidth: 20rem;
+    --jobPictureMaxHeight: 30rem;
+
+    --dialogWidth: 26rem;
+    --explainMaxWidth: 14rem;    /* popis chyby a statusu v navu */
+
+    /* --- obrazky u rychlosti --------------------------------------------
+       Kazdy ma svou promennou, aby je sel JS prebarvovat podle hodnoty
+       v policku vedle. */
     --colorGauge: #007113;
     --colorRuler: #aceaf9;
     --colorSpindle: #ace3f9;
 
+    /* --- stavove barvy --------------------------------------------------
+       Nesou vyznam, ne jen vzhled, proto vlastni skupina. */
+    --unknownColor: #f3ff83;
+    --unknownColorText: #a08921;
+    --badColor: #ff4949;
+    --badColorText: #6f1b1b;
+    --okColor: #00a92a;
+    --okColorText: #004211;
+
     --endstopPressed: #ff8c8c;
-    --endstopRealeased: #93f493;
     --endstopPressedBorder: #ff0000;
+    --endstopPressedText: #6f1b1b;
+    --endstopRealeased: #93f493;
     --endstopRealeasedBorder: #00ff00;
+    --endstopRealeasedText: #004211;
     --endstopUndecided: #c8c8c8;
     --endstopUndecidedBorder: #000000;
+    --endstopUndecidedText: #1b1b1b;
+    --endstopSymbolColor: var(--textColor);
 
-    /* --- STOP a PAUSE/CONTINUE ------------------------------------------
-       Vlastni barvy, protoze ta tlacitka nesou vyznam, ne jen akci.
-       Pause zluta pri bezicim jobu, Continue zelena pri pozastavenem. */
+    /* STOP a PAUSE/CONTINUE. Prepisuji si jen promenne tlacitek, takze
+       obecna pravidla i prechod plati dal. */
     --stopColor: #b3261e;
     --stopHoverColor: #8c1d18;
     --stopBorderColor: #5f120f;
@@ -140,82 +153,450 @@ main > *,
     --continueHoverColor: #237c3e;
     --continueBorderColor: #14512a;
     --continueTextColor: #f4fff7;
-
-    /* Text v endstopech - vlastni sada, at se da odlisit od pozadi
-       nezavisle. Meni se podle toho, jestli koncak sepnul. */
-    --endstopPressedText: #6f1b1b;
-    --endstopRealeasedText: #004211;
-    --endstopUndecidedText: #1b1b1b;
-
-    /* Symbol v nadpisu endstopu. */
-    --endstopSymbolColor: var(--textColor);
-
-    --cardBGColor: #11131F;
-
-    --shadow: 0 1px 2px #00000026, 0 6px 16px #0000001f;
-
-    /* Na plochem sedem navu je jemny stin proste neviditelny. */
-    --shadowStrong: 0 2px 4px #0000003d, 0 10px 22px #00000038;
-
-    --canvasColor: #ffffff;
-
-    /* Spolecna sirka krizatka a panelu rychlosti pod nim. */
-    --jogColWidth: 27rem;
-
-    /* Sirka leveho sloupce a nahledu v job panelu. */
-    --jobLeftWidth: 20rem;
-    --jobCanvasWidth: 40rem;
-
-    --unknownColor: #f3ff83;
-    --badColor: #ff4949;
-    --okColor: #00a92a;
-
-    --unknownColorText: #a08921;
-    --badColorText: #6f1b1b;
-    --okColorText: #004211;
-
-    --bgImage: url('./backgrounds-default/ComplexGraph.png');
 }
+
 
 /* ======================================================================
-   ROZLOZENI JOG PANELU - vsechno pohromade, at se to neshani po souboru.
-   Selektory jsou zamerne dvouurovnove (.jogPart > .neco), aby prebily
-   zakladni pravidla niz v souboru bez ohledu na poradi.
-   Sirku leveho sloupce ridi --jogColWidth v :root vyse.
+   RESET A ZAKLAD
    ====================================================================== */
 
-/* Cela jogovaci cast se ma vejit na jednu obrazovku a na vetsim monitoru
-   vypadat stejne, jen vetsi. Vsechny rozmery v tomhle souboru jsou v em/rem,
-   takze staci skalovat zaklad: nav a jogPart dohromady meri 70.5 rem, takze
-   pri font-size = 100dvh / 71 vyplni presne vysku okna. Pomery a poloha
-   panelu tim zustanou na kazdem monitoru stejne, meni se jen velikost.
-   max() je pojistka pro hodne nizka okna, at text neskonci na par pixelech. */
-@media (min-width: 801px) {
-    html { font-size: max(11px, calc(100dvh / 71)); }
+/* Bez tohohle se padding a border pricitaji k sirce, takze kazdy ramecek
+   v uzkem sloupci precuhne prave o svuj padding + border. */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    height: 100dvh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: max-content 1fr;
+    background-color: var(--bgColor);
+    color: var(--textColor);
+    font-family: var(--fontFamily);
+}
+
+/* Formularove prvky pismo po rodici nededi. Dedi se jen rodina, ne
+   velikost, aby to neprebilo velikosti nastavene jinde. */
+button,
+input { font-family: inherit; }
+
+/* canvas je inline element, takze pod nim zustava 4px mezera po uctovani
+   radku - kvuli ni byl obal vyssi nez platno. Pruhledny canvas by navic
+   pustil pozadi skrz kresbu. */
+canvas {
+    display: block;
+    background-color: var(--canvasColor);
+}
+
+/* Polozka gridu ma min-width: auto, takze se sama nesmrskne pod sirku
+   sveho obsahu ani ve sloupci, ktery uz zuzit jde. */
+main > *,
+.upNav > *,
+.jogPart > *,
+.jogSpeeds > * { min-width: 0; }
+
+
+/* ======================================================================
+   SPOLECNE VZORY
+   ====================================================================== */
+
+/* Panel: ramecek, zaobleni, podklad a stin. Stin potrebuje podklad, jinak
+   se odrazi od prazdna a vypada jako obtah. */
+.jogButGrid,
+.jogSpeeds,
+.endstops,
+.jobButtons,
+.jobETA,
+.telemetry {
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    background-color: var(--cardBGColor);
+    box-shadow: var(--shadow);
+    padding: var(--defaultPadding);
+}
+
+/* Nadpis panelu vedle ikony na jedne ose. */
+.jogName,
+.jobLabelUp,
+.jobNameKey,
+.time-label,
+.endstopName,
+.jogButGrid h2,
+.telemetry h2,
+.settingsTitle,
+.jobRowHead,
+.jobRowFact,
+.jobRowName,
+.jobSearch,
+.settingsClose {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+}
+
+.jogName,
+.jobLabelUp,
+.jobNameKey,
+.time-label,
+.endstopName,
+.jogButGrid h2,
+.telemetry h2,
+.settingsClose { justify-content: center; }
+
+/* Nadpisy panelu jsou h2 nebo h3 - resetuje se jejich vlastni margin,
+   jinak natahuji panel o dvacitky pixelu navic. Nadpis krizatka v seznamu
+   schvalne neni: svuj vychozi margin tam drzi odjakziva a na mobilu na nem
+   stoji vyska panelu. */
+.jogName,
+.jobNameKey,
+.jobLabelUp,
+.telemetry h2,
+.settingsTitle,
+.jobRowName,
+.errorPage h3,
+.statusPage h3,
+.upNav h1 { margin: 0; }
+
+.jogName,
+.jobNameKey,
+.jobLabelUp { font-size: 1.5rem; }
+
+.jogName,
+.jobLabelUp,
+.jobNameKey,
+.time-label { padding-top: var(--defaultPadding); }
+
+.jogName,
+.jobLabelUp,
+.jobNameValue,
+.jobETA,
+#jobsListed { text-align: center; }
+
+/* --- ikony -------------------------------------------------------------
+   Lucide ikony maji v atributech width/height 24 az 60, coz je vedle textu
+   obr. Velikost drzi pismo, at ikona sedi na radku s nim. */
+[class*="lucide"] {
+    flex: 0 0 auto;
+    width: var(--iconSize);
+    height: var(--iconSize);
+}
+
+/* Sila cary na jednom miste. Kresby u rychlosti (pravitko, tachometr,
+   vreteno) zamerne vyjmute - ty maji vlastni tloustky uvnitr kresby. */
+[class*="lucide"] * {
+    vector-effect: non-scaling-stroke;
+    stroke-width: var(--iconStroke);
+}
+
+.settingsTitle svg,
+.settingsClose svg { stroke-width: var(--iconStroke); }
+
+/* --- tlacitka ----------------------------------------------------------
+   Obsah na stred a ikona vedle textu, ne pod nim. */
+button,
+.jobListAdd label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--buttonGap);
+    padding: var(--defaultPadding);
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    text-align: center;
+}
+
+/* Barvy a prolinaci prechod. Prepinac seznamu, nastaveni a sipky u policek
+   maji vlastni chovani, proto jsou vyjmute. */
+button:not(.JobsBut, .settingBut, .stepArrow),
+.jobListAdd label {
+    color: var(--buttonTextColor);
+    border-color: var(--buttonBorderColor);
+    background-color: var(--buttonColor);
+    transition:
+        color var(--buttonTransition) ease,
+        border-color var(--buttonTransition) ease,
+        background-color var(--buttonTransition) ease;
+}
+
+button:not(.JobsBut, .settingBut, .stepArrow):hover,
+button:not(.JobsBut, .settingBut, .stepArrow):focus-visible,
+.jobListAdd label:hover,
+.jobListAdd label:focus-visible { background-color: var(--hoverColor); }
+
+/* Tlacitka, ktera nesou vyznam, prepisuji jen promenne - obecna pravidla
+   vys si je pak precti sama i s prechodem. */
+#stopButton,
+.jobRowDelete {
+    --buttonColor: var(--stopColor);
+    --hoverColor: var(--stopHoverColor);
+    --buttonBorderColor: var(--stopBorderColor);
+    --buttonTextColor: var(--stopTextColor);
+}
+
+#pauseOrContinueButton {
+    --buttonColor: var(--pauseColor);
+    --hoverColor: var(--pauseHoverColor);
+    --buttonBorderColor: var(--pauseBorderColor);
+    --buttonTextColor: var(--pauseTextColor);
+}
+
+#pauseOrContinueButton.continue {
+    --buttonColor: var(--continueColor);
+    --hoverColor: var(--continueHoverColor);
+    --buttonBorderColor: var(--continueBorderColor);
+    --buttonTextColor: var(--continueTextColor);
+}
+
+/* --- policka s cislem --------------------------------------------------
+   Cislo a jednotka v jedne bubline, sipky krokovani mimo ni. */
+.numberField {
+    display: flex;
+    align-items: baseline;
+    gap: var(--defaultPadding);
+    padding: var(--defaultPadding);
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    background-color: var(--bgColor);
+    color: var(--fieldTextColor);
+}
+
+/* Bublina prevezme i zvyrazneni pri psani, at se ramecek nezdvojuje. */
+.numberField:focus-within,
+.jobSearch:focus-within { box-shadow: var(--focusShadow); }
+
+/* Policko samo uz zadne pozadi ani ramecek nema, ty nese bublina.
+   appearance: textfield schova nativni sipky - jsou ted vlastnimi
+   tlacitky vedle. */
+.numberField input[type="number"],
+.jobSearch input {
+    width: 5ch;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--fieldTextColor);
+    appearance: textfield;
+}
+
+.numberField input[type="number"] { text-align: right; }
+
+.numberField input[type="number"]::-webkit-outer-spin-button,
+.numberField input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+}
+
+.numberField input[type="number"]:focus-visible,
+.jobSearch input:focus-visible { outline: none; }
+
+.numberField .unit {
+    font-size: .8em;
+    white-space: nowrap;
+}
+
+.stepper {
+    display: grid;
+    gap: 2px;
+}
+
+/* Sipky krokovani: bez pozadi a bez ramecku, pohyb jen naznaci smer. */
+.stepArrow {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--stepArrowColor);
+    opacity: var(--stepArrowOpacity);
+    transition:
+        transform var(--stepArrowTransition) ease,
+        opacity var(--stepArrowTransition) ease;
+}
+
+.stepArrow [class*="lucide"] {
+    width: var(--iconSizeJob);
+    height: var(--iconSizeJob);
+}
+
+.stepArrow:hover,
+.stepArrow:focus-visible { opacity: var(--stepArrowHoverOpacity); }
+
+.stepArrow[data-step="up"]:hover,
+.stepArrow[data-step="up"]:focus-visible { transform: translateY(calc(-1 * var(--stepArrowShift))); }
+
+.stepArrow[data-step="down"]:hover,
+.stepArrow[data-step="down"]:focus-visible { transform: translateY(var(--stepArrowShift)); }
+
+.stepArrow:active { transform: scale(var(--stepArrowPress)); }
+
+
+/* ======================================================================
+   KOSTRA STRANKY
+   ====================================================================== */
+
+main {
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--partsDistances);
+    padding: var(--defaultMargin);
+    overflow-y: auto;
+    /* Konkretni obrazek dosazuje script.js, tohle je jen jak se ma chovat
+       a cim se vyplni, nez se nacte. */
+    background-color: var(--bgColor);
+    background-image: linear-gradient(var(--bgDim), var(--bgDim)), var(--bgImage, none);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+/* --- nav ---------------------------------------------------------------
+   Dva stejne siroke krajni sloupce drzi prostredni dvojici presne na stredu
+   bez ohledu na to, jak siroky je nadpis nebo tlacitka. */
+.upNav {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--partsDistances);
+    padding: var(--defaultPadding);
+    border-bottom: var(--border);
+    background-color: var(--cardBGColor);
+}
+
+/* Logo: SVG ma v atributech 512pt a fill natvrdo, takze prislo obrovske
+   a cerne. Velikost drzi vyska pisma nadpisu, barvu dedi po nem. */
+.upNav h1 {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultPadding);
+    margin-inline: var(--defaultPadding);
+}
+
+.upNav h1 svg {
+    width: auto;
+    height: 1.75em;
+    color: var(--textColor);
+    flex: 0 0 auto;
+}
+
+/* Dvojice error + status drzi pohromade a jde s ni hybat jako s jednou
+   veci. */
+.navInfo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    gap: var(--partsDistances);
+}
+
+/* Tlacitka navu jsou hole ikony od horni po dolni hranu listy - je to
+   nejvetsi mozny terc, aniz by lista musela rust. padding-right je
+   rezerva pro zvetseni pri najeti, to prerusta svoje tlacitko. */
+.navButtons {
+    display: flex;
+    align-items: stretch;
+    align-self: stretch;
+    justify-self: end;
+    gap: var(--defaultMargin);
+    padding-inline: var(--partsDistances);
+    padding-right: calc(var(--partsDistances) * 1.5);
+    /* Tlacitka navu zadny text nemaji, takze "podle textu vedle" pro ne
+       nedava smysl - pevna hodnota odpovidajici jejich velikosti. */
+    --iconStroke: 2.4px;
+}
+
+.navButtons button {
+    height: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+}
+
+/* Vyska od listy, ne od pisma. Procento se pocita z content boxu tlacitka.
+   transform-box: fill-box je u SVG potreba, jinak se toci kolem pocatku
+   souradnic viewportu a ne kolem sebe. */
+.navButtons [class*="lucide"] {
+    width: auto;
+    height: 53%;
+    aspect-ratio: 1;
+    max-height: 100%;
+    color: var(--textColor);
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform .25s ease;
+}
+
+/* Ozubene kolo ma sest zubu, takze po 60 stupnich vypada stejne - otoceni
+   je videt, ale nedojede nakrivo. */
+.settingBut:hover [class*="lucide"],
+.settingBut:focus-visible [class*="lucide"] { transform: rotate(60deg) scale(1.2); }
+
+.JobsBut:hover [class*="lucide"],
+.JobsBut:focus-visible [class*="lucide"] { transform: scale(1.2); }
+
+/* --- error a status v navu --------------------------------------------- */
+.errorPage,
+.statusPage {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: var(--defaultPadding);
+    margin-block: var(--defaultMargin);
+    padding: var(--defaultPadding) var(--defaultMargin);
+    border: var(--unknownColorText) var(--defaultSolid) var(--borderSize);
+    border-radius: var(--defaultRadius);
+    background-color: var(--unknownColor);
+    box-shadow: var(--shadowStrong);
+}
+
+.errorPage div,
+.statusPage div {
+    display: block;
+    color: inherit;
+    font-size: .95rem;
+}
+
+#errorExplain,
+#statusExplain { max-width: var(--explainMaxWidth); }
+
+#errorSymbol [class*="lucide"],
+#statusSymbol [class*="lucide"] {
+    width: var(--navSymbolSize);
+    height: var(--navSymbolSize);
+}
+
+
+/* ======================================================================
+   JOG CAST
+   ----------------------------------------------------------------------
+   Mapa rozlozeni dole vypada jako skica: vlevo krizatko a rychlosti,
+   vpravo platno a pod nim endstopy. Kdyz chces neco presunout, staci
+   prehodit jmeno v mape, cisla sloupcu pocitat netreba.
+   ====================================================================== */
+
+.jogPart {
+    display: grid;
+    gap: var(--partsDistances);
+    padding: var(--defaultMargin);
 }
 
 @media (min-width: 801px) {
-    /* Mapa rozlozeni - ta tabulka dole vypada jako ta skica. Kdyz chces
-       neco presunout, staci prehodit jmeno v te mape, cisla sloupcu
-       pocitat netreba. Tecka = prazdne misto.
+    /* Cela jog cast se ma vejit na jednu obrazovku a na vetsim monitoru
+       vypadat stejne, jen vetsi. Skaluje se jediny root font-size, zbytek
+       souboru je v em/rem. max() je pojistka pro hodne nizka okna. */
+    html { font-size: max(11px, calc(100dvh / var(--fitDivisor))); }
 
-       "main >" tu je schvalne: nize v souboru je zakladni .jogPart se
-       svoji vlastni sablonou a pri stejne specificite vyhrava to, co je
-       v souboru pozdeji. Tohle ji prebije bez ohledu na poradi. */
+    /* Strop je na sloupci, ne na platnu: kdyz sedi na platnu, stopa sezere
+       celou sirku a platno v ni zustane vlevo s dirou vpravo. */
     main > .jogPart {
-        /* Strop je na sloupci, ne na platnu: kdyz sedi na platnu, stopa
-           sezere celou sirku a platno v ni zustane vlevo s dirou vpravo.
-           Takhle se omezi stopa a cely grid se da vycentrovat. */
-        /* 56rem je sirka, kterou platno dostane na 1920 - nad tim uz neroste,
-           takze na 2560 vypada stranka stejne, jen se cely blok vystredi.
-           Bez stropu si platno vzalo 1344 px a pomery se rozesly. */
-        grid-template-columns: var(--jogColWidth) minmax(0, 56rem);
+        grid-template-columns: var(--jogColWidth) minmax(0, var(--jogCanvasMax));
         grid-template-rows: auto auto auto;
-        justify-content: center;
         grid-template-areas:
             "pad    canvas"
             "speeds canvas"
             "speeds endstops";
+        justify-content: center;
     }
 
     .jogPart > .jogButGrid { grid-area: pad; }
@@ -223,20 +604,18 @@ main > *,
     .jogPart > .jogModel   { grid-area: canvas; }
     .jogPart > .endstops   { grid-area: endstops; }
 
-    /* Platno: pomer 16:10 podle skici (815 x 505). Proto align-self: start -
-       roztazeni na vysku radku by ten pomer prebilo.
-       min-width/min-height rusi max-content ze zakladniho pravidla, ktere
-       by z platna s danou vyskou spocitalo nesmyslnou sirku.
-       max-width je strop na sirsich monitorech. */
+    /* min-width/min-height rusi max-content ze zakladniho pravidla, ktere
+       by z platna s danou vyskou spocitalo nesmyslnou sirku. align-self:
+       start proto, ze roztazeni na vysku radku by pomer prebilo. */
     .jogPart > .jogModel {
-        aspect-ratio: 1.45;
+        aspect-ratio: var(--jogCanvasRatio);
         align-self: start;
-        border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-        border-radius: var(--defaultRadius);
-        overflow: hidden;
         min-width: 0;
         min-height: 0;
         margin: 0;
+        overflow: hidden;
+        border: var(--border);
+        border-radius: var(--defaultRadius);
     }
 
     .jogPart > .jogModel .jogModelCanvas {
@@ -246,50 +625,79 @@ main > *,
         max-width: none;
     }
 
-    /* Endstopy uz nejsou pres oba sloupce, ale pod platnem - tam, kde driv
-       zustavala prazdna plocha. Panel rychlosti vedle nich saha pres oba
-       radky, proto align-self: start, aby si drzel svoji vysku. */
+    /* Endstopy stoji hned u panelu rychlosti, ne vystredene v sirokem
+       sloupci platna. */
     .jogPart > .endstops {
-        width: min(100%, 38rem);
-        /* start, ne center: vystredene v sirokem sloupci platna odskocily od
-           panelu rychlosti vedle nich. Takhle stoji hned u nej. */
+        width: min(100%, var(--endstopsMaxWidth));
         justify-self: start;
     }
 
-    /* Panel rychlosti se roztahne pres oba radky, ktere zabira, takze jeho
-       spodek lici se spodkem endstopu vedle nej a cela jog cast tvori
-       vykousnuty obdelnik. Obsah si uvnitr drzi stred (align-content: center
-       v zakladnim pravidle). Musi to byt tady a dvoutridne: nize je
-       ".jogSpeeds { align-self: center }", ktere by se jinak prosadilo. */
+    /* Rychlosti se roztahnou pres oba radky, ktere zabiraji, takze jejich
+       spodek lici se spodkem endstopu a cela jog cast tvori vykousnuty
+       obdelnik. Musi to byt dvoutridne, nize je ".jogSpeeds
+       { align-self: center }". */
     .jogPart > .jogSpeeds { align-self: stretch; }
 
     .endstops > .endstopsList {
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        grid-auto-rows: 5rem;
+        grid-auto-rows: var(--endstopRowHeight);
         gap: var(--partsDistances);
     }
 }
 
-/* Krizatko: ctverec, bunky fluidni podle plochy, radky maji spodni
-   hranici, at tlacitka nezhubnou na vysku pisma. */
+/* --- krizatko ----------------------------------------------------------
+   Ctverec, bunky fluidni podle plochy, radky maji spodni hranici, at
+   tlacitka nezhubnou na vysku pisma. */
 .jogPart > .jogButGrid {
     aspect-ratio: 1;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(3, minmax(4.2em, 1fr));
+    grid-template-rows: repeat(3, minmax(var(--jogPadCellMin), 1fr));
 }
 
-/* DOM ma endstopy v poradi X+ X- Y+ Y- Z+ Z-, rozlozit se maji jako
-   X+ X- Z+ / Y+ Y- Z-. Automaticky tok by to nesesadil. */
-#eXF { grid-area: 1 / 1; }
-#eXB { grid-area: 1 / 2; }
-#eZF { grid-area: 1 / 3; }
-#eYF { grid-area: 2 / 1; }
-#eYB { grid-area: 2 / 2; }
-#eZB { grid-area: 2 / 3; }
+.jogButGrid {
+    align-self: center;
+    gap: var(--defaultMargin);
+}
 
-/* Rychlosti jako jedna mrizka 3 x 3, ne tri nezavisle radky - jen tak se
-   popisky, pole a obrazky srovnaji do sloupcu pod sebou. display: contents
-   vyradi ty tri obalove divy a jejich obsah vstoupi primo do mrizky rodice. */
+.jogButGrid div {
+    display: grid;
+    aspect-ratio: 1;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: var(--partsDistances);
+    padding: var(--defaultPadding);
+}
+
+/* Krizatko se mackne rukou od stroje, takze co nejvetsi terc. min-width: 0,
+   aby se tlacitko nesmrsklo pod svuj obsah a nevylezlo z bunky. */
+.jogButGrid div button {
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+}
+
+.jogButGrid button {
+    min-width: 0;
+    font-size: 1.35rem;
+}
+
+/* Tlacitka krizatka nemaji popisek, vyznam nese sama sipka - proto vetsi. */
+.jogButGrid [class*="lucide"] {
+    width: var(--iconSizeJog);
+    height: var(--iconSizeJog);
+}
+
+/* --- rychlosti ---------------------------------------------------------
+   Jedna mrizka 3 x 4, ne tri nezavisle radky - jen tak se popisky, pole
+   a obrazky srovnaji do sloupcu pod sebou. display: contents vyradi tri
+   obalove divy a jejich obsah vstoupi primo do mrizky rodice. */
+.jogSpeeds {
+    display: grid;
+    align-content: center;
+    align-self: center;
+    gap: var(--defaultMargin);
+    width: min(100%, var(--speedsMaxWidth));
+}
+
 .jogControlSpeed > .jogSteps,
 .jogControlSpeed > .jogSpeed,
 .jogControlSpeed > .jogSpindle { display: contents; }
@@ -297,15 +705,10 @@ main > *,
 .jogSpeeds > .jogControlSpeed {
     display: grid;
     grid-template-columns: auto auto auto minmax(0, auto);
-    /* Mezi radky velka mezera, mezi sloupci mala: ctyri sloupce presne
-       vyplnily sirku panelu a na podstavec uz nezbyvalo nic. Uzsi mezery
-       posunou popisek, policko i sipky doleva a vpravo zbyde vzduch. */
+    /* Mezi radky velka mezera, mezi sloupci mala: ctyri sloupce jinak presne
+       vyplnily sirku panelu a na podstavec kresby uz nezbylo nic. */
     gap: var(--defaultMargin) var(--defaultPadding);
-    /* start, ne space-between: mezery mezi sloupci maji byt vsude stejne
-       (jeden --defaultMargin), ne roztazene podle sirky panelu. Volne misto
-       tim zbyde za podstavcem, coz je prave ta mezera od praveho ramecku. */
     justify-content: start;
-    padding-inline: var(--defaultPadding);
     justify-items: start;
     align-items: center;
     width: 100%;
@@ -318,17 +721,171 @@ main > *,
 /* Popisky a pole doleva, obrazek na stred svoji stopy. */
 .jogControlSpeed svg { justify-self: center; }
 
+/* Vsechna tri policka sdili jeden sloupec, ale kazde si bralo jen svoji
+   sirku - "RPM" je delsi nez "mm". stretch je srovna na sirku sloupce. */
+.jogControlSpeed .numberField { justify-self: stretch; }
+
+.jogSpeeds input[type="number"] {
+    min-width: 0;
+    font-size: 1.1rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* SVG u rychlosti maji sirku pevne v atributu (width="133"), takze se samy
+   nezuzi a v uzsim panelu by ho pretlacily. */
+.jogSpeeds svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Podstavec pod menici se kresby: bez nej splyvaji s pozadim panelu.
+   Vsechny tri maji stejnou velikost, at to je jedna sada - kresba se do
+   nich vejde sama, protoze SVG s viewBoxem se vzdycky vystredi.
+   Dvoutridne kvuli pravidlu ".jogSpeeds svg" o radek vys, max-width: none
+   ze stejneho duvodu. box-sizing zustava border-box, jinak by se padding
+   s rameckem pricetly ke sirce a podstavce by vylezly z panelu. */
+.jogSpeeds .stepSizeArrow,
+.jogSpeeds .speedSizeArrow,
+.jogSpeeds .spindleSizeArrow {
+    width: var(--speedIconWidth);
+    height: var(--speedIconHeight);
+    max-width: none;
+    /* Sipky u policka stoji hned vedle, bez tehle mezery se podstavec lepi
+       primo na ne. */
+    margin-left: var(--defaultPadding);
+    padding: var(--defaultPadding);
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    background-color: var(--buttonColor);
+}
+
+/* Kresby uvnitr jsou na currentColor, takze staci nastavit barvu samotnemu
+   SVG - a JS ji muze kdykoliv prepsat podle hodnoty v policku vedle. */
+.stepSizeArrow { color: var(--colorRuler); }
+.speedSizeArrow { color: var(--colorGauge); }
+.spindleSizeArrow { color: var(--colorSpindle); }
+
+/* --- model -------------------------------------------------------------
+   Ramecek ani zaobleni nedrzi canvas, ale .jogModel kolem nej: WebGL obsah
+   je vlastni vrstva a Chrome ji do zaoblenych rohu orezava po schodech. */
+.jogModel {
+    position: relative;
+    align-self: start;
+    align-items: end;
+    justify-items: center;
+    box-shadow: var(--shadow);
+}
+
+.jogModelCanvas {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    max-width: 1460px;
+}
+
+/* Telemetrie je prekryv uvnitr platna, at je od hrany poradna mezera
+   a nesplyva s rameckem. Nesmi platno prerust, kdyz je platno male. */
+.telemetry {
+    position: absolute;
+    inset: auto var(--defaultMargin) var(--defaultMargin) auto;
+    max-width: calc(100% - 2 * var(--defaultMargin));
+    max-height: calc(100% - 2 * var(--defaultMargin));
+    overflow: auto;
+    font-size: 1.1rem;
+}
+
+.telemetry div {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-items: start;
+    align-items: center;
+    padding: var(--defaultPadding);
+}
+
+/* --- endstopy ----------------------------------------------------------
+   Odsazeni nese az mrizka uvnitr, ne panel - proto padding: 0. */
+.endstops {
+    padding: 0;
+    text-align: center;
+}
+
+.endstopsList {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--partsDistances);
+    padding: var(--defaultMargin);
+    text-align: center;
+}
+
+.endstopsList div {
+    display: grid;
+    align-items: center;
+    border: var(--endstopUndecidedBorder) dashed var(--borderSize);
+    border-radius: var(--defaultRadius);
+    text-align: center;
+}
+
+/* DOM ma endstopy v poradi X+ X- Y+ Y- Z+ Z-, rozlozit se maji jako
+   X+ X- Z+ / Y+ Y- Z-. Automaticky tok by to nesesadil. */
+#eXF { grid-area: 1 / 1; }
+#eXB { grid-area: 1 / 2; }
+#eZF { grid-area: 1 / 3; }
+#eYF { grid-area: 2 / 1; }
+#eYB { grid-area: 2 / 2; }
+#eZB { grid-area: 2 / 3; }
+
+/* Tri tridy, ktere na policka prepina JS. */
+.endstopsList .endstopUndecided {
+    border-color: var(--endstopUndecidedBorder);
+    color: var(--endstopUndecidedText);
+    background-color: var(--endstopUndecided);
+}
+
+.endstopsList .endstopPressed {
+    border-color: var(--endstopPressedBorder);
+    color: var(--endstopPressedText);
+    background-color: var(--endstopPressed);
+}
+
+.endstopsList .endstopRealeased {
+    border-color: var(--endstopRealeasedBorder);
+    color: var(--endstopRealeasedText);
+    background-color: var(--endstopRealeased);
+}
+
+/* Symbol v nadpisu je vyplneny, ne tazeny, takze bere barvu pres
+   fill="currentColor" a sila cary se ho netyka. */
+.endstopName svg { color: var(--endstopSymbolColor); }
+
+.endstopName .leverIcon {
+    width: auto;
+    height: 1.4em;
+    flex: 0 0 auto;
+}
+
 
 /* ======================================================================
-   ROZLOZENI JOB PANELU - stejny princip jako mapa vyse.
+   JOB CAST (pod jogem)
    ====================================================================== */
 
+.jobGoingPart {
+    display: grid;
+    gap: var(--partsDistances);
+    padding: var(--defaultMargin);
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    background-color: var(--cardBGColor);
+    box-shadow: var(--shadow);
+    /* Uzsi nez main a na stredu, at kolem dokola zustane videt obrazek. */
+    width: min(100%, var(--jobPartMaxWidth));
+    justify-self: center;
+}
+
 @media (min-width: 801px) {
+    /* Prostredni radek presne na vysku tlacitek, zbytek poslednimu - jinak
+       si nahled (ktery pres oba prechazi) rozdeli vysku napul a ETA odpluje
+       od tlacitek dolu. */
     main > .jobGoingPart {
         grid-template-columns: var(--jobLeftWidth) minmax(0, var(--jobCanvasWidth));
-        /* Prostredni radek presne na vysku tlacitek, zbytek pripadne
-           poslednimu - jinak si nahled (ktery pres oba prechazi) rozdeli
-           svoji vysku napul a ETA odpluje od tlacitek dolu. */
         grid-template-rows: auto max-content 1fr;
         grid-template-areas:
             "jobname jobname"
@@ -342,364 +899,314 @@ main > *,
     .jobGoingPart > .jobETA       { grid-area: eta; }
     .jobGoingPart > .jobPicture   { grid-area: picture; }
 
-    /* Tlacitka a ETA vyplni svuj sloupec a drzi se u horni hrany radku -
-       vysku radku urcuje nahled vedle, ktery je vyssi. */
-    .jobGoingPart > .jobButtons,
-    .jobGoingPart > .jobETA {
-        width: 100%;
-        align-self: start;
-    }
-
     .jobGoingPart > .jobPicture { align-self: start; }
 }
 
-/* Nahled jobu: pomer ze skici (570 x 330), tedy zhruba 16:9. */
-.jobGoingPart > .jobPicture canvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
-    max-width: none;
+/* Vysku radku urcuje nahled vedle, ktery je vyssi - bez align-self: start
+   se tlacitka natahla na jeho vysku a plavala v prazdnem obdelniku. */
+.jobButtons,
+.jobETA {
+    align-self: start;
+    width: min(100%, var(--jobButtonsMaxWidth));
 }
 
-/* --- konec rozlozeni job panelu -------------------------------------- */
-
-
-body {
-    background-color: var(--bgColor);
+.jobButtons {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: max-content 1fr;
-    height: 100dvh;
-    margin: 0;
-    overflow: hidden;
-}
-
-main {
-    /* Konkretni obrazek dosazuje script.js, tohle je jen jak se ma chovat
-       a cim se vyplni, nez se nacte. */
-    background-color: var(--bgColor);
-    background-image: linear-gradient(var(--bgDim), var(--bgDim)), var(--bgImage, none);
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover;
-    grid-column: 1;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    overflow-y: auto;
-    margin: 0;
-    padding: var(--defaultMargin);
-    gap: var(--partsDistances)
-}
-
-/* prvni level */
-.upNav {
-    grid-column: 1 / -1;
-    display: grid;
-    /* Dva stejne siroke krajni sloupce drzi prostredni dvojici presne na
-       stredu navu bez ohledu na to, jak siroky je nadpis nebo tlacitka.
-       (Drive tu bylo "autobn", coz je neplatna hodnota a zahodilo to cely
-       radek, takze nav zadnou sablonu nemel.) */
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: var(--partsDistances);
-    padding: var(--defaultPadding);
-    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    background-color: var(--cardBGColor);
-}
-
-/* jogPart je jen obal, ktery drzi mrizku - ramecek nesou az casti v nem. */
-.jogPart {
-    display: grid;
-    grid-template-columns: auto auto auto;
     grid-template-rows: auto auto;
-    padding: var(--defaultMargin);
-    gap: var(--partsDistances)
+    align-content: center;
+    gap: var(--defaultMargin);
 }
 
+.jobButtons [class*="lucide"] {
+    width: var(--iconSizeJob);
+    height: var(--iconSizeJob);
+}
 
-.jobGoingPart {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    box-shadow: var(--shadow);
-    background-color: var(--cardBGColor);
-    /* Uzsi nez main a na stredu, at kolem dokola zustane videt obrazek. */
-    /* 1.8x proti puvodnim 58rem. min() drzi strop, at to na uzsim okne
-       nikdy nepretece. */
-    width: min(100%, 104rem);
-    justify-self: center;
+/* Pause a Continue jsou jedno tlacitko se dvema ikonami. Vychozi stav je
+   pause, trida "continue" prepne ikonu i barvy. */
+#pauseOrContinueButton .lucide-play { display: none; }
+#pauseOrContinueButton.continue .lucide-pause { display: none; }
+#pauseOrContinueButton.continue .lucide-play { display: block; }
+
+/* Nazev jobu a ETA: popisek ma z pravidla pro nadpisy padding-top a ikonu
+   vyssi nez jeho text, takze by sedel niz nez hodnota vedle nej. */
+.jobNameLabel {
+    display: flex;
+    align-items: center;
+    gap: var(--defaultMargin);
+    margin: var(--defaultMargin);
+    padding: 0;
+}
+
+.jobGoingPart > .jobNameLabel {
+    justify-content: center;
+    text-align: center;
+}
+
+.jobGoingPart > .jobETA {
+    justify-content: center;
+    gap: var(--defaultMargin);
+    align-items: start;
+}
+
+.jobGoingPart > .jobNameLabel .jobNameKey,
+.jobGoingPart > .jobETA .time-label {
+    padding-top: 0;
+    align-items: center;
+}
+
+.jobGoingPart > .jobNameLabel .jobNameKey [class*="lucide"],
+.jobGoingPart > .jobETA .time-label [class*="lucide"] {
+    width: 1em;
+    height: 1em;
+}
+
+.jobEtaSymbol {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--defaultPadding);
+}
+
+.jobEtaInner {
     display: grid;
     grid-template-columns: auto auto;
-    gap: var(--partsDistances);
-    padding: var(--defaultMargin);
+    align-items: center;
+    padding: var(--defaultPadding);
 }
 
+.jobPicture canvas {
+    width: 100%;
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    box-shadow: var(--shadow);
+}
+
+/* Platno nese pomer stran desky ve svem width/height (nastavuje script.js),
+   takze se jen zmensi a pomer zustane. Strop vysky hlida, aby deska
+   nenatahla celou job cast. */
+.jobGoingPart > .jobPicture canvas {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: var(--jobPictureMaxHeight);
+    aspect-ratio: auto;
+    margin-inline: auto;
+}
+
+.jobNameValue,
+.jobETA,
+.telemetry { font-size: 1.1rem; }
+
+.jobNameValue,
+#jobsListed { color: var(--textMutedColor); }
+
+
+/* ======================================================================
+   SEZNAM JOBU (pravy sloupec)
+   ====================================================================== */
 
 .jobListPart {
-    border-left: var(--borderColor) var(--defaultSolid) var(--borderSize);
     grid-column: 2;
     grid-row: 2;
     width: var(--rightPartWidth);
     display: grid;
     grid-template-rows: max-content minmax(0, 1fr);
     overflow: hidden;
+    border-left: var(--border);
+}
+
+body[data-joblist="closed"] .jobListPart { display: none; }
+
+/* Upload je cela horni cast seznamu, ne tlacitko uprostred ni. Neni to
+   <button>, takze mu chybi kurzor. */
+.jobListAdd {
+    display: grid;
+    padding: 0;
+    border-bottom: var(--border);
+}
+
+.jobListAdd label {
+    width: 100%;
+    min-height: var(--uploadMinHeight);
+    gap: var(--defaultPadding);
+    border-width: 0;
+    border-radius: 0;
+    background-color: var(--cardBGColor);
+    cursor: pointer;
+}
+
+/* Hlaska pod tlacitkem nahravani - proc se soubor nenahral. */
+.jobUploadNote {
+    margin: var(--defaultPadding) 0 0 0;
+    color: var(--textMutedColor);
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+/* Hlavicka nese odsazeni a linku - seznam uz zadny bocni padding nema,
+   aby linky mezi jobami sly pres cely pravy blok. */
+.jobListHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--defaultMargin);
+    padding: var(--defaultPadding) var(--defaultMargin);
+    border-bottom: var(--border);
+}
+
+/* Nadpis je jinak vycentrovany jako ostatni, tady ma byt u leveho okraje. */
+.jobLabelUp {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+/* Hledani vypada jako policka rychlosti, at je to jedna stranka. */
+.jobSearch {
+    min-width: 0;
+    padding: var(--defaultPadding);
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    background-color: var(--bgColor);
+    color: var(--fieldTextColor);
+}
+
+.jobSearch input {
+    width: var(--searchWidth);
+    font: inherit;
 }
 
 .jobList {
     overflow-y: auto;
-    /* Zadny bocni padding: linky mezi jobami maji jit pres celou sirku
-       praveho bloku, takze odsazeni si nese kazdy radek sam. */
     padding: 0;
 }
 
-/*jog part*/
-
-.jogButGrid {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    grid-row: 1;
-    padding: var(--defaultPadding);
-}
-
-.jogButGrid h2 {
-    display: flex;
-    gap: var(--defaultPadding);
-    justify-content: center;
-    align-items: center;
-}
-
-.jogButGrid div {
+/* --- radek seznamu -----------------------------------------------------
+   Polozka je pruh pres celou sirku panelu oddeleny linkou, ne karta.
+   Vlevo jmeno a pod nim tlacitka, vpravo cas, datum a velikost. Odsazeni
+   nese radek, ne seznam - jinak by linka nedosahla k okrajum. */
+.jobRow {
     display: grid;
-    aspect-ratio: 1/1;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--partsDistances);
-    grid-template-rows: 1fr 1fr 1fr;
-    padding: var(--defaultPadding);
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas:
+        "head  facts"
+        "print facts"
+        "del   facts";
+    gap: var(--defaultPadding) var(--defaultMargin);
+    padding: var(--defaultMargin);
+    border-bottom: var(--border);
+    text-align: left;
 }
 
-.jogButGrid div button {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
+/* Radek ma display: grid, takze by ho samotny atribut hidden neschoval. */
+.jobRow[hidden] { display: none; }
+
+.jobRowHead   { grid-area: head; }
+.jobRowFacts  { grid-area: facts; }
+.jobRowPrint  { grid-area: print; }
+.jobRowDelete { grid-area: del; }
+
+/* Dlouhy nazev souboru nesmi roztahnout cely panel. */
+.jobRowName {
+    overflow-wrap: anywhere;
+    color: var(--textColor);
 }
 
-.jogSpeeds {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-}
-
-.endstopName {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--defaultPadding);
-}
-
-.endstops {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    text-align: center;
-}
-
-.endstopsList {
+/* space-between, ne start: udaje maji vyplnit stejnou vysku, jakou vlevo
+   zaberou nazev a obe tlacitka. */
+.jobRowFacts {
     display: grid;
-    text-align: center; 
-    grid-template-columns: 1fr 1fr 1fr;
+    align-content: space-between;
+    gap: var(--defaultPadding);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--textMutedColor);
+}
+
+/* Misto na ikonu. Dokud do nej nic nevlozis, nezabira nic - rozlozeni
+   proto sedi i bez ikon. */
+.jobRowIcon,
+.jobRowNameIcon {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+}
+
+.jobRowIcon:empty { display: none; }
+
+/* justify-self: start, aby si tlacitka nebrala cely sloupec. min-width je
+   drzi stejne siroka: bez nej je Delete o slovo sirsi nez Print. */
+.jobRowPrint,
+.jobRowDelete {
+    justify-self: start;
+    gap: var(--defaultPadding);
+    min-width: var(--jobRowButtonMin);
+}
+
+/* Stejny ramecek jako maji tlacitka jogpadu. Prepisuje se promenna, ne
+   rovnou border-color: obecne button:not(...) ma vyssi specificitu nez
+   samotna trida a barvu by si vzalo zpatky. */
+.jobRowPrint { --buttonBorderColor: var(--borderColor); }
+
+
+/* ======================================================================
+   NASTAVENI V POPUPU
+   <dialog> je do otevreni display: none a showModal() ho sam vycentruje,
+   zatmavi pozadi a chyta Esc, takze se nic z toho nemusi psat v JS.
+   ====================================================================== */
+
+.settingsDialog {
+    width: min(var(--dialogWidth), calc(100vw - 2 * var(--defaultMargin)));
+    padding: 0;
+    border: var(--border);
+    border-radius: var(--defaultRadius);
+    background-color: var(--cardBGColor);
+    color: var(--textColor);
+    box-shadow: var(--shadowStrong);
+}
+
+.settingsDialog::backdrop { background-color: rgb(0 0 0 / 45%); }
+
+.settingsForm {
+    display: grid;
     gap: var(--partsDistances);
     padding: var(--defaultMargin);
 }
 
-.endstopsList div {
-    border: var(--endstopUndecidedBorder) dashed var(--borderSize);
-    border-radius: var(--defaultRadius);
-    background-color: var(--endstopUndecided);
+.settingsTitle svg {
+    width: 1.4em;
+    height: 1.4em;
+}
+
+/* Popisek, policko a sipky na jeden radek. Sirku bere popisek, policko se
+   smrskne az k nemu - proto minmax(0, ...) u obou, jinak by pretekly. */
+.settingsRow {
     display: grid;
-    align-items: center;
-    text-align: center;
-}
-
-.jogModel {
-    position: relative;
-    justify-items: center;
-    align-items: end;
-    margin: var(--defaultMargin);
-    grid-row: 1;
-    grid-column: 2/4;
-    min-width: max-content;
-    min-height: max-content;
-}
-
-.jogControlSpeed {
-    display: grid;
-    justify-content: start;
-}
-
-
-.jogSteps {
-    display: grid;
-    grid-template-rows: auto;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--partsDistances);
-    margin: var(--defaultMargin);
-    max-height: fit-content;
-    justify-items: start;
-    align-items: center;
-}
-
-
-.jogSpeed{
-    display: grid;
-    grid-template-rows: auto;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--partsDistances);
-    margin: var(--defaultMargin);
-    max-height: fit-content;
-    justify-items: start;
-    align-items: center;
-}
-
-
-.jogSpindle {
-    display: grid;
-    grid-template-rows: auto;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: var(--partsDistances);
-    margin: var(--defaultMargin);
-    max-height: fit-content;
-    justify-items: start;
-    align-items: center;
-}
-
-
-
-
-/*job going part*/
-
-
-.jobNameLabel {
-    grid-row: 1;
-    margin: var(--defaultMargin);
-    display: flex;
-    justify-items: center;
-    align-items: center;
-}
-
-
-.jobPicture {
-    grid-row: 2;
-    grid-column: 2;
-}
-
-
-.jobPicture canvas {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    width: 100%;
-    aspect-ratio: 2 / 1;
-    max-width: 1460px;
-}
-
-
-.jobButtons {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    grid-row: 2;
-    display: grid;
-    grid-template-rows: auto auto;
-    gap: var(--partsDistances);
-    padding: var(--defaultPadding);
-}
-
-
-.jobETA {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    align-items: start;
-}
-
-
-.jobEtaSymbol {
-    display: flex;
-    justify-content: center;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto) max-content;
     align-items: center;
     gap: var(--defaultPadding);
 }
 
+.settingsNote {
+    margin: 0;
+    color: var(--textMutedColor);
+}
 
-.jobEtaInner {
-    grid-row: 3;
-    padding: var(--defaultPadding);
-    display: grid;
-    grid-template-columns: auto auto;
-    align-items: center;
+.settingsClose svg {
+    width: 1.2em;
+    height: 1.2em;
 }
 
 
-/*job list part*/
+/* ======================================================================
+   STAVY ERRORU A STATUSU
+   Jedna trida na bunce ridi pozadi, ramecek, barvu textu i to, ktery ze
+   tri symbolu je videt. JS tedy nesaha na styly, jen prehodi tridu.
+   Vybirano pres [class*="circle-"], aby to platilo i na varianty
+   s dvojkou na konci.
+   ====================================================================== */
 
-.jobListAdd {
-    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    padding: var(--defaultMargin);
-    display: grid;
-}
-
-.jobListAdd button {
-    display: flex;
-    justify-content: center;
-    height: 75px;
-}
-
-
-body[data-joblist="closed"] .jobListPart { display: none; }
-
-
-/* nav part*/
-
-
-.errorPage {
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: var(--defaultMargin);
-    align-items: center;
-    border: var(--unknownColorText) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    background-color: var(--unknownColor);
-}
-
-.statusPage {
-    display: grid;
-    grid-template-columns: auto auto;
-    gap: var(--defaultMargin);
-    align-items: center;
-    border: var(--unknownColorText) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    padding: var(--defaultPadding);
-    background-color: var(--unknownColor);
-}
-
-.errorPage div {
-    display: block;
-    color: inherit;
-    font-size: large;
-}
-
-.statusPage div {
-    display: block;
-    color: inherit;
-    font-size: large;
-}
-
-
-/* --- stavy erroru a statusu --------------------------------------------
-   Jedna trida na bunce ridi pozadi, ramecek, barvu textu i to, ktery ze tri
-   symbolu je videt. JS tedy nesaha na styly, jen prehodi tridu.
-
-   Vybirano pres [class*="circle-x"] a ne pres presny nazev, aby to platilo
-   i na varianty s dvojkou na konci, ktere mas u statusu.
-   ----------------------------------------------------------------------- */
-
-/* Vychozi je vsechno schovane, odkryje az stavova trida. */
 .errorPage [class*="circle-"],
 .statusPage [class*="circle-"] { display: none; }
 
@@ -729,66 +1236,77 @@ body[data-joblist="closed"] .jobListPart { display: none; }
 }
 
 
-
-/*model part*/
-
-.telemetry {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    position: absolute;
-    bottom: 12px;
-    right: 5px;
-    padding: var(--defaultPadding);
-}
-
-
-.telemetry h2 {
-    display: flex;
-    align-items: center;
-    gap: var(--defaultPadding);
-    justify-content: center;
-    /* Nadpis ma vychozi margin pres 20 px nahoru i dolu. Telemetrie ma nize
-       max-height podle platna, takze tech 44 px slo primo na ukor radku
-       s hodnotami - Spindle vyjizdel ven. */
-    margin: 0;
-}
-
-
-
-.telemetry div {
-    display: grid;
-    grid-template-columns: auto auto;
-    justify-items: start;
-    align-items: center;
-    padding: var(--defaultPadding);
-}
-
-
-/* Ramecek ani zaobleni nedrzi canvas, ale .jogModel kolem nej. WebGL obsah
-   je vlastni vrstva a Chrome ji do zaoblenych rohu orezava po schodech -
-   v rozich pak carka vypada okousana. Obycejny div s overflow: hidden
-   orizne ciste. */
-.jogModelCanvas {
-    width: 100%;
-    aspect-ratio: 2 / 1;
-    max-width: 1460px;
-}
-
-
-
-
-/* mobil jiny*/
-
+/* ======================================================================
+   MOBIL
+   ====================================================================== */
 
 @media (max-width: 800px) {
-    /* Nav se na telefonu zalamuje, takze musi byt uspornejsi - jinak by
-       z obrazovky ukrojil vic nez otevreny seznam pod nim. */
-    .upNav { gap: var(--defaultPadding); }
-    .upNav h1 { font-size: 1.4rem; }
+    /* Jeden radek: nadpis, dvojice, tlacitka. Nadpis je ta pruzna cast -
+       bez minmax(0,...) by se nesmrskl pod svuj text. */
+    .upNav {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: var(--defaultPadding);
+    }
+
+    /* Nadpis mizi - clovek vi, jakou stranku si otevrel, kdezto popis chyby
+       je jedina veta, ktera mu rekne, co se deje. */
+    .upNav h1 { display: none; }
+
+    .navInfo {
+        grid-area: auto;
+        flex-wrap: nowrap;
+        gap: var(--defaultPadding);
+    }
+
+    .navButtons {
+        grid-area: auto;
+        padding-inline: 0;
+        padding-right: 0;
+        gap: var(--defaultPadding);
+    }
+
+    /* Ikony navu jsou na telefonu terc palce, ne ozdoba. */
+    .navButtons [class*="lucide"] {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* Obe bunky stejne siroke a smi se zuzit - popis se pak zalomi misto
+       toho, aby roztahl nav. */
+    .errorPage,
+    .statusPage {
+        flex: 1 1 0;
+        min-width: 0;
+        margin-block: var(--defaultPadding);
+        padding: 2px 6px;
+        gap: 4px;
+        font-size: .85rem;
+    }
+
+    .errorPage div,
+    .statusPage div { font-size: .75rem; }
+
+    #errorExplain,
+    #statusExplain { max-width: 11rem; }
+
+    #errorSymbol [class*="lucide"],
+    #statusSymbol [class*="lucide"] {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* Vsechno pod sebou. Casti jobu maji z desktopu napevno sloupce, takze
+       by si v jednom sloupci vyrobily druhy a prekryly se. */
+    .jogPart,
+    .jobGoingPart {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+    }
+
+    .jobGoingPart > * { grid-area: auto; }
 
     /* Jogovat z telefonu nema smysl, krizatko na nem neni. Z modelu mizi
-       jen platno - telemetrie zustava, ale uz ne jako prekryv nad nicim,
-       nybrz jako samostatny blok v toku. */
+       jen platno - telemetrie zustava jako samostatny blok v toku. */
     .jogModelCanvas { display: none; }
 
     .telemetry {
@@ -796,9 +1314,6 @@ body[data-joblist="closed"] .jobListPart { display: none; }
         width: 100%;
     }
 
-    /* Model ma z desktopu grid-column: 2/4. Dokud byl na mobilu schovany,
-       nevadilo to; ted by si v jednosloupcove mrizce vyrobil sloupce 2 a 3
-       a vylezl z displeje. */
     .jogModel {
         grid-area: auto;
         min-width: 0;
@@ -806,30 +1321,43 @@ body[data-joblist="closed"] .jobListPart { display: none; }
         margin: 0;
     }
 
-    /* Vsechno pod sebou. */
-    .jogPart,
-    .jobGoingPart {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: none;
+    /* Bez platna je telemetrie jedina karta modelu, takze ma mit plnou
+       sirku jako ostatni - desktopovy strop ji delal uzsi. */
+    .telemetry { max-width: none; }
+
+    .jogButGrid button { font-size: 1rem; }
+
+    .jogButGrid [class*="lucide"] {
+        width: 1.1em;
+        height: 1.1em;
     }
 
-    .endstops { grid-template-columns: 1fr 1fr; }
+    /* Do radku vedle popisku, policka a sipek se uz obrazek nevejde -
+       stopa mu vysla na 0 px a byl jen neviditelne oriznuty. */
+    .jogSpeeds > .jogControlSpeed { grid-template-columns: auto auto auto; }
+
+    .stepSizeArrow,
+    .speedSizeArrow,
+    .spindleSizeArrow { display: none; }
+
+    /* Mensi mezery a pevna vyska radku: se desktopovymi 2rem mezerami
+       vysla na telefonu kazda policka na tenky prouzek. */
+    .endstopsList {
+        gap: var(--defaultPadding);
+        padding: var(--defaultPadding);
+        grid-auto-rows: var(--endstopRowHeightMobile);
+    }
+
+    /* Vsechny karty stejne siroke a na stredu: job panel lezi primo v main,
+       ne v jogPart, takze mu chybi jeho odsazeni - dopocita se tady. Karty
+       uvnitr pak vyplni celou jeho sirku. */
+    .jobGoingPart { width: calc(100% - 2 * var(--defaultMargin)); }
+
+    .jobButtons,
+    .jobETA { width: 100%; }
 
     /* Dva sloupce se v uzkem panelu smackly na par znaku na radek. */
     .jobNameLabel { grid-template-columns: minmax(0, 1fr); }
-
-    /* Casti jobu maji z desktopu napevno radky a sloupce (.jobPicture je
-       treba v grid-column: 2). V jednom sloupci by si tim vyrobily druhy
-       sloupec a prekryly se - tohle je posle pod sebe. */
-    .jobGoingPart > * { grid-area: auto; }
-
-    .jogSteps,
-    .jogSpeed,
-    .jogSpindle {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: var(--defaultPadding);
-        margin: var(--defaultPadding);
-    }
 
     /* Otevreny seznam zabere cely prostor pod navem. Nav zustava videt,
        aby slo tymtez tlacitkem zase zavrit. */
@@ -841,850 +1369,10 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     }
 
     body[data-joblist="open"] main { display: none; }
-}
 
-
-/* --- stiny a centrovani ------------------------------------------------
-   Stin potrebuje podklad, jinak se odrazi od prazdna a vypada jako obtah.
-   Proto casti dostavaji stejne pozadi jako nav. */
-.jogButGrid,
-.jogSpeeds,
-.endstops,
-.jobButtons,
-.jobETA,
-.telemetry {
-    box-shadow: var(--shadow);
-    background-color: var(--cardBGColor);
-}
-
-.jogModel,
-.jobPicture canvas { box-shadow: var(--shadow); }
-
-.jogName,
-.jobLabelUp,
-.jobNameKey,
-.time-label {
-    display: flex;
-    gap: .45em;
-    align-items: center;
-    justify-content: center;
-    padding-top: var(--defaultPadding);
-    gap: var(--defaultPadding);
-}
-
-.jogName,
-.jobLabelUp,
-.jobNameValue,
-.jobETA,
-.jogSteps p,
-.jogSpeed p,
-.jogSpindle p,
-#jobsListed { text-align: center; }
-
-/* Popisky rychlosti byly zarovnane doleva, takze text a pole pod sebou
-   neseděly. */
-.jogSteps,
-.jogSpeed,
-.jogSpindle { justify-items: center; }
-
-/* Vsechna tri policka sdili jeden sloupec mrizky, ale kazde si bralo jen
-   svoji sirku - "RPM" je delsi nez "mm", takze byly ruzne siroke. stretch
-   je roztahne na sirku sloupce, tedy na sirku toho nejsirsiho. */
-.jogControlSpeed .numberField { justify-self: stretch; }
-
-/* Podstavec pod menici se kresby. Bez nej splyvaji s pozadim panelu, takhle
-   je nese plocha v barve tlacitek a kresba na ni vynikne. Vsechny tri maji
-   stejnou velikost, at to je jedna sada - kresby se do nich vejdou samy,
-   protoze SVG s viewBoxem se vzdycky vejde a vystredi.
-
-   Selektory jsou dvoutridni schvalne: nize je ".jogSpeeds svg { height: auto }",
-   ktere ma vyssi specificitu nez samotna trida a vysku by prebilo zpatky.
-   box-sizing zustava border-box z globalniho resetu, jinak by se padding
-   s rameckem pricetly ke 100 % a podstavce by vylezly z panelu. */
-.jogSpeeds .stepSizeArrow,
-.jogSpeeds .speedSizeArrow,
-.jogSpeeds .spindleSizeArrow {
-    /* max-width: none prebiji ".jogSpeeds svg { max-width: 100% }" - to je
-       proti prilis sirokym kresbam, ale tady uz sirku drzi podstavec. */
-    max-width: none;
-    width: 5.5em;
-    height: 4.5em;
-    /* Sipky u policka stoji hned vedle, bez tehle mezery se podstavec lepi
-       primo na ne. */
-    margin-left: var(--defaultPadding);
-    padding: var(--defaultPadding);
-    /* Stejne jako tlacitka jogpadu: vypln --buttonColor, ramecek
-       --borderColor. --buttonBorderColor je skoro cerny a na podstavci
-       vypadal jako obtah. */
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    background-color: var(--buttonColor);
-}
-
-/* Tlacitka bez popisku nesou vyznam jen ikonou, takze ta musi byt vetsi
-   nez ikona doprovazejici text. */
-.jobButtons [class*="lucide"] {
-    width: 2.2em;
-    height: 2.2em;
-}
-
-
-/* Pause a Continue jsou jedno tlacitko se dvema ikonami. Vychozi stav je
-   pause; trida "continue" na tlacitku prepne ikonu i barvy. */
-#pauseOrContinueButton .lucide-play { display: none; }
-#pauseOrContinueButton.continue .lucide-pause { display: none; }
-#pauseOrContinueButton.continue .lucide-play { display: block; }
-
-
-@media (max-width: 800px) {
-    /* Na telefonu nadpis a tlacitka nahore, dvojice pod nimi pres celou
-       sirku - vedle sebe uz na to neni misto. */
-    .upNav { grid-template-columns: auto auto; }
-    .upNav h1 { grid-area: 1 / 1; }
-    .navButtons { grid-area: 1 / 2; }
-    .navInfo { grid-area: 2 / 1 / 2 / 3; }
-}
-
-
-/* --- nav ---------------------------------------------------------------
-   Error a status se smrsknou na svuj obsah, posledni sloupec je 1fr a
-   odtlaci tlacitka na kraj. */
-.navButtons { justify-self: end; }
-
-.errorPage,
-.statusPage { box-shadow: var(--shadowStrong); }
-
-/* Symboly stavu jsou hlavni sdeleni celeho navu, proto vyrazne vetsi nez
-   ikony u textu. Specificita pres id prebije obecne pravidlo nahore. */
-#errorSymbol [class*="lucide"],
-#statusSymbol [class*="lucide"] {
-    width: 68px;
-    height: 68px;
-}
-
-/* Upload je cela horni cast seznamu, ne tlacitko uprostred ni. */
-.jobListAdd { padding: 0; }
-
-.jobListAdd label {
-    width: 100%;
-    min-height: 4.5em;
-    border: none;
-    border-radius: 0;
-    gap: var(--defaultPadding);
-}
-
-@media (max-width: 800px) {
-    /* 68px vedle textu se do puliky telefonu nevejde. */
-    #errorSymbol [class*="lucide"],
-    #statusSymbol [class*="lucide"] {
-        width: 44px;
-        height: 44px;
-    }
-}
-
-
-/* --- velikosti textu ---------------------------------------------------
-   Nadpisy panelu jsou h2, takze se resetuje jen vlastni margin. */
-.jogName,
-.jobNameKey,
-.jobLabelUp {
-    margin: 0;
-    font-size: 1.5rem;
-}
-
-/* Hlavicka seznamu si nese odsazeni a linku pod sebou - seznam uz zadny
-   bocni padding nema, aby linky mezi jobami sly pres cely pravy blok. */
-.jobListHead {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--defaultMargin);
-    padding: var(--defaultPadding) var(--defaultMargin);
-    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
-}
-
-/* Nadpis je jinak vycentrovany jako ostatni, tady ma byt u leveho okraje. */
-.jobLabelUp {
-    justify-content: flex-start;
-    text-align: left;
-}
-
-/* Hledani vypada jako policka rychlosti, at je to jedna stranka. */
-.jobSearch {
-    display: flex;
-    align-items: center;
-    gap: var(--defaultPadding);
-    min-width: 0;
-    padding: var(--defaultPadding);
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    background-color: var(--bgColor);
-    color: var(--fieldTextColor);
-}
-
-.jobSearch:focus-within { box-shadow: 0 0 0 3px var(--focusRing); }
-
-.jobSearch input {
-    width: 7em;
-    min-width: 0;
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--fieldTextColor);
-    font: inherit;
-}
-
-.jobSearch input:focus-visible { outline: none; }
-
-/* Radek ma display: grid, takze by ho samotny atribut hidden neschoval. */
-.jobRow[hidden] { display: none; }
-
-.jogSteps p,
-.jogSpeed p,
-.jogSpindle p,
-.telemetry,
-.jobNameValue,
-.jobETA { font-size: 1.1rem; }
-
-/* Jogovaci krizatko se mackne rukou od stroje, takze co nejvetsi terc. */
-.jogButGrid button { font-size: 1.4rem; }
-
-.jogButGrid [class*="lucide"] {
-    width: 1.5em;
-    height: 1.5em;
-}
-
-/* Vlastni vertikalni margin h1 by nav zbytecne natahoval, vysku urcuje
-   padding a vyska symbolu. */
-.upNav h1 { margin: 0; }
-
-/* Dvojice v navu drzi pohromade a jde s ni hybat jako s jednou veci. */
-.navInfo {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--partsDistances);
-    align-items: center;
-    justify-content: center;
-    justify-self: center;
-}
-
-/* Bez sirky by "(backend not connected)" roztahlo oba bloky pres pul navu. */
-#errorExplain,
-#statusExplain { max-width: 14rem; }
-
-/* Pruhledny canvas by pustil pozadi mainu skrz kresbu. */
-canvas { background-color: var(--canvasColor); }
-
-/* --- velikosti po prvnim pohledu na hotovou stranku --------------------
-   Jogovaci krizatko vyslo prilis velke, kdyz dostalo vetsi pismo i ikony. */
-.jogButGrid {
-    gap: var(--defaultMargin);
-    padding: var(--defaultPadding);
-}
-
-.jogButGrid button { font-size: 1.35rem; }
-
-.jogButGrid [class*="lucide"] {
-    width: 1.4em;
-    height: 1.4em;
-}
-
-.jobButtons {
-    gap: var(--defaultMargin);
-    align-content: center;
-}
-
-.jobButtons [class*="lucide"] {
-    width: 1.7em;
-    height: 1.7em;
-}
-
-/* Tlacitka v navu jsou dva nesouvisejici prikazy, at se netrefi omylem. */
-.navButtons {
-    display: flex;
-    gap: var(--defaultMargin);
-    align-items: center;
-}
-
-.navButtons [class*="lucide"] {
-    width: 2em;
-    height: 2em;
-}
-
-/* Pole pro rychlosti vypadala jako holy systemovy input mezi samymi
-   zarámovanými panely. */
-.jogSpeeds input[type="number"] {
-    padding: var(--defaultPadding);
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    background-color: var(--bgColor);
-    font-size: 1.1rem;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-}
-
-.jogSpeeds input[type="number"]:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--focusRing);
-}
-
-@media (max-width: 800px) {
-    /* Na telefonu zabiraly ty dva bloky skoro tretinu displeje. */
-    .errorPage,
-    .statusPage {
-        gap: var(--defaultPadding);
-        padding: var(--defaultPadding);
-        font-size: .85rem;
-    }
-
-    #errorExplain,
-    #statusExplain { max-width: 11rem; }
-
-    .navInfo { gap: var(--defaultPadding); }
-}
-
-/* Nazev jobu uz vlastni podlozku nepotrebuje - jobGoingPart ma zase svoje
-   pozadi, takze by to byla seda na sede a jediné, co by ji prozradilo, je
-   stin. Zbyva tedy jen sbalit oba sloupce k sobe: "auto auto" se v roztazene
-   bunce roztahne taky a popisek s hodnotou se rozejdou na opacne konce. */
-.jobNameLabel {
-    justify-content: start;
-    gap: var(--defaultMargin);
-    padding: 0;
-}
-
-/* Vysku radku urcuje plátno vedle, ktere ma aspect-ratio 2/1. Bez tohohle
-   se tlacitka natahla na jeho vysku a plavala v prazdnem sedem obdelniku. */
-.jobButtons,
-.jobETA { align-self: start; }
-
-.jogSpeeds { width: min(100%, 32rem); }
-
-.jobButtons,
-.jobETA { width: min(100%, 20rem); }
-
-/* SVG u rychlosti maji sirku pevne v atributu (width="133"), takze se samy
-   nezuzi a v uzsim panelu by ho pretlacily. */
-.jogSpeeds svg {
-    max-width: 100%;
-    height: auto;
-}
-
-/* Tlacitka navu jdou od horniho po dolni okraj listy - je to nejvetsi
-   mozny terc, aniz by se lista musela zvetsovat. */
-.navButtons {
-    align-self: stretch;
-    align-items: stretch;
-}
-
-.navButtons button { height: 100%; }
-
-/* --- tlacitka navu -----------------------------------------------------
-   Jsou to holé ikony, ramecek ani podklad k nim nepatri. Vyska zustava na
-   100 %, takze terc je porad cela lista. */
-.navButtons button {
-    padding: 0;
-    border: none;
-    background: none;
-}
-
-/* transform-box: fill-box je u SVG potreba, jinak se toci kolem pocatku
-   souradnic viewportu a ne kolem sebe. */
-.navButtons [class*="lucide"] {
-    transform-box: fill-box;
-    transform-origin: center;
-    transition: transform .25s ease;
-}
-
-/* Ozubene kolo ma sest zubu, takze po 60 stupnich vypada uplne stejne -
-   otoceni je videt, ale nedojede nakrivo a neni to zbytecnych 360. */
-.settingBut:hover [class*="lucide"],
-.settingBut:focus-visible [class*="lucide"] { transform: rotate(60deg) scale(1.25); }
-
-.JobsBut:hover [class*="lucide"],
-.JobsBut:focus-visible [class*="lucide"] { transform: scale(1.25); }
-
-@media (prefers-reduced-motion: reduce) {
-    .navButtons [class*="lucide"] { transition: none; }
-}
-
-/* Krizatko i rychlosti jsou uzsi nez jejich sloupec, takze zarovnane na
-   zacatek nechavaly vedle sebe velkou diru proti endstopum a platnu.
-   Na stredu se to volne misto rozdeli na obe strany. */
-
-/* Svisle taky na stred. Jakakoliv hodnota krome stretch znamena, ze se
-   polozka nenatahne na vysku radku, takze podklad padu porad sedi presne
-   na tlacitka - jen uz neleží nahore. */
-.jogButGrid,
-.jogSpeeds { align-self: center; }
-
-/* Ikony navu se meri od vysky listy, ne od pisma: 75 % v klidu, 90 % pri
-   najeti (0.75 * 1.2 = 0.9). Procento se ale pocita z content boxu tlacitka,
-   a ten uz je o padding a spodni ramecek listy mensi - proto 92 %, coz z
-   cele listy vyjde na tech 75 %. */
-.navButtons [class*="lucide"] {
-    width: auto;
-    /* Dve tretiny z dosavadnich 80 % vysky tlacitka. */
-    height: 53%;
-    aspect-ratio: 1;
-    max-height: 100%;
-}
-
-.settingBut:hover [class*="lucide"],
-.settingBut:focus-visible [class*="lucide"] { transform: rotate(60deg) scale(1.2); }
-
-.JobsBut:hover [class*="lucide"],
-.JobsBut:focus-visible [class*="lucide"] { transform: scale(1.2); }
-
-/* Panel rychlosti je vyssi nez jeho obsah (vysku radku urcuji endstopy
-   vedle), takze nadpis a ovladace sedely u horniho okraje. */
-.jogSpeeds {
-    display: grid;
-    align-content: center;
-    gap: var(--defaultMargin);
-}
-
-/* Zvetseni pri najeti je transform, takze nezabira misto v layoutu - ikona
-   prerosta svoje tlacitko o 8.9 px na kazdou stranu a u prave hrany listy
-   na to zbyvalo 0.7 px. Tohle je ta rezerva. */
-.navButtons { padding-inline: var(--defaultMargin); }
-
-/* Clustrovani misto centrovani: "auto" stopy se roztahuji o volne misto,
-   takze skupiny odplouvaly od sebe pres celou sirku. justify-content: start
-   je sbali k sobe a mezi nimi zustane jen gap. */
-
-/* Endstopy uz sirku nepotrebuji hlidat - na desktopu ji urcuji fr sloupce
-   mrizky, na mobilu se roztahnou pres celou sirku. S pevnym min-width
-   naopak vylezaly ze sve stopy, kdyz na ne v uzsim okne nezbylo. */
-
-/* Posledni sloupec bere volne misto na sebe. Skupiny vlevo tim zustanou
-   sbalene u sebe a zaroven platno nepřijde o fluidni sirku - pevna hodnota
-   by mu vzala schopnost rust s oknem. */
-
-/* canvas je inline element, takze pod nim v bloku zustava 4px mezera po
-   uctovani radku. Kvuli ni byla .jogModel vyssi nez platno a telemetrie,
-   kotvena k jejimu spodku, sedela jinde nez u spodku platna. */
-canvas { display: block; }
-
-/* Telemetrie je prekryv uvnitr platna, at je od jeho hrany poradna mezera
-   a nesplyva s rameckem. */
-.telemetry {
-    inset: auto var(--defaultMargin) var(--defaultMargin) auto;
-}
-
-/* Vetsi odstup tlacitek navu od hrany obrazovky. */
-.navButtons { padding-inline: var(--partsDistances); }
-
-
-
-/* Bez tohohle se model natahne na vysku radku (tu urcuje krizatko vedle),
-   ale platno si vysku drzi podle aspect-ratio - telemetrie kotvena ke
-   spodku sekce pak skoncila hluboko pod platnem. */
-.jogModel { align-self: start; }
-
-
-/* Telemetrie nesmi prerust platno, kdyz je platno male. */
-.telemetry {
-    max-width: calc(100% - 2 * var(--defaultMargin));
-    max-height: calc(100% - 2 * var(--defaultMargin));
-    overflow: auto;
-}
-
-/* Vetsi vzduch mezi settings a hranou obrazovky. */
-.navButtons { padding-right: calc(var(--partsDistances) * 1.5); }
-
-/* Tlacitka krizatka maji min-width: auto, takze se nesmrskla pod svuj
-   obsah a na uzkem displeji vylezala z bunky. Na telefonu je bunka jen
-   ~59 px siroka, proto tam k tomu jde i mensi pismo a ikona. */
-.jogButGrid button { min-width: 0; }
-
-@media (max-width: 800px) {
-    .jogButGrid button { font-size: 1rem; }
-
-    .jogButGrid [class*="lucide"] {
-        width: 1.1em;
-        height: 1.1em;
-    }
-}
-
-/* Nazev jobu a jeho hodnota na stred panelu. */
-.jobGoingPart > .jobNameLabel {
-    justify-content: center;
-    text-align: center;
-}
-
-/* Tlacitka krizatka uz nemaji popisek, vyznam nese sama sipka - proto vetsi. */
-.jogButGrid [class*="lucide"] {
-    width: 2em;
-    height: 2em;
-}
-
-/* ======================================================================
-   PRECHODY TLACITEK
-   Obycejny prolinaci prechod pozadi. Drive tu byla vlna vyrustajici z mista,
-   kde mys do tlacitka vjela - vypadala efektne, ale pri rychlem prejizdeni
-   panelu z ni bylo neklidno, tak je pryc i s obsluhou v script.js.
-   Netyka se prepinace seznamu, nastaveni a sipek u policek - ty maji
-   vlastni chovani.
-   ====================================================================== */
-
-button:not(.JobsBut, .settingBut, .stepArrow),
-.jobListAdd label {
-    color: var(--buttonTextColor);
-    border-color: var(--buttonBorderColor);
-    background-color: var(--buttonColor);
-    transition:
-        color var(--buttonTransition) ease,
-        border-color var(--buttonTransition) ease,
-        background-color var(--buttonTransition) ease;
-}
-
-.jobListAdd label { background-color: var(--cardBGColor); }
-
-button:not(.JobsBut, .settingBut, .stepArrow):hover,
-button:not(.JobsBut, .settingBut, .stepArrow):focus-visible,
-.jobListAdd label:hover,
-.jobListAdd label:focus-visible { background-color: var(--hoverColor); }
-
-@media (prefers-reduced-motion: reduce) {
-    button:not(.JobsBut, .settingBut, .stepArrow),
-    .jobListAdd label { transition: none; }
-}
-
-/* ======================================================================
-   POLICKA RYCHLOSTI
-   Cislo a jednotka v jedne bublině, sipky krokovani mimo ni.
-   ====================================================================== */
-
-.numberField {
-    display: flex;
-    gap: var(--defaultPadding);
-    align-items: baseline;
-    padding: var(--defaultPadding);
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    background-color: var(--bgColor);
-}
-
-/* Policko uz zadne vlastni pozadi ani ramecek nema, ty nese bublina. */
-.numberField input[type="number"] {
-    width: 5ch;
-    min-width: 0;
-    padding: 0;
-    border: none;
-    background: none;
-    text-align: right;
-}
-
-.numberField input[type="number"]:focus-visible { outline: none; }
-
-/* Bublina prevezme i zvyrazneni pri psani, at se ramecek nezdvojuje. */
-.numberField:focus-within { box-shadow: 0 0 0 3px var(--focusRing); }
-
-/* Nativni sipky pryc - jsou ted vlastnimi tlacitky vedle. */
-.numberField input[type="number"] { appearance: textfield; }
-
-.numberField input[type="number"]::-webkit-outer-spin-button,
-.numberField input[type="number"]::-webkit-inner-spin-button {
-    appearance: none;
-    margin: 0;
-}
-
-.numberField .unit {
-    font-size: .8em;
-    white-space: nowrap;
-}
-
-.stepper {
-    display: grid;
-    gap: 2px;
-}
-
-/* ======================================================================
-   SIPKY KROKOVANI - vlastni chovani, zamerne oddelene od tlacitek.
-   Bez pozadi a bez ramecku; pohyb jen naznaci smer. Az budes chtit jinou
-   animaci, meni se jen tenhle blok.
-   ====================================================================== */
-
-.stepArrow {
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--stepArrowColor);
-    opacity: var(--stepArrowOpacity);
-    transition:
-        transform var(--stepArrowTransition) ease,
-        opacity var(--stepArrowTransition) ease;
-}
-
-.stepArrow [class*="lucide"] {
-    width: 1.7em;
-    height: 1.7em;
-}
-
-.stepArrow:hover,
-.stepArrow:focus-visible { opacity: var(--stepArrowHoverOpacity); }
-
-.stepArrow[data-step="up"]:hover,
-.stepArrow[data-step="up"]:focus-visible {
-    transform: translateY(calc(-1 * var(--stepArrowShift)));
-}
-
-.stepArrow[data-step="down"]:hover,
-.stepArrow[data-step="down"]:focus-visible {
-    transform: translateY(var(--stepArrowShift));
-}
-
-.stepArrow:active { transform: scale(var(--stepArrowPress)); }
-
-@media (prefers-reduced-motion: reduce) {
-    .stepArrow { transition: none; }
-}
-
-/* "Job" a nazev jobu na jednu osu. Rozchazely se ze dvou duvodu naraz:
-   nadpis ma padding-top, ktery hodnota vedle nej nema, a ikona v nadpisu
-   je vyssi nez jeho text, takze mu zvedala radek. Tohle resi oboje. */
-.jobGoingPart > .jobNameLabel {
-    align-items: center;
-}
-
-/* Nadpis ma z pravidla pro nadpisy panelu padding-top; tady ale nestoji
-   nad obsahem, ale vedle hodnoty, takze ho jen posunoval dolu. */
-.jobGoingPart > .jobNameLabel .jobNameKey {
-    padding-top: 0;
-    align-items: center;
-}
-
-/* Ikona vyssi nez text nadpisu by radek zvedla a text by pak nesedel
-   s hodnotou vedle. */
-.jobGoingPart > .jobNameLabel .jobNameKey [class*="lucide"] {
-    width: 1em;
-    height: 1em;
-}
-
-@media (max-width: 800px) {
-    /* Na telefon uz se do radku vedle popisku, policka a sipek nevejde
-       i obrazek - stopa mu vysla na 0 px a byl jen neviditelne oriznuty.
-       Je to dekorace, tak at radeji zmizi poradne a radek ma tri sloupce. */
-    .jogSpeeds > .jogControlSpeed { grid-template-columns: auto auto auto; }
-
-    .stepSizeArrow,
-    .speedSizeArrow,
-    .spindleSizeArrow { display: none; }
-}
-
-/* Barva textu na jednom miste, at se neopira o vychozi nastaveni
-   prohlizece. Dedi se do vseho, co si ji neprepise samo. */
-body { color: var(--textColor); }
-
-/* Druhotne texty - hodnota jobu, prazdny seznam, jednotka u policka. */
-.jobNameValue,
-#jobsListed { color: var(--textMutedColor); }
-
-/* Pismo na jednom miste. body ho rozdava dedicnosti do celeho dokumentu. */
-body { font-family: var(--fontFamily); }
-
-/* Formularove prvky pismo po rodici nededi, maji svoje systemove - proto
-   jim to musi rict nekdo zvlast. Dedi se jen rodina, ne velikost, aby to
-   neprebilo velikosti nastavene jinde. */
-button,
-input,
-select,
-textarea { font-family: inherit; }
-
-/* ETA a jeho cas jako dvojice na stredu, ne roztazene do rohu. */
-.jobGoingPart > .jobETA {
-    justify-content: center;
-    gap: var(--defaultMargin);
-}
-
-/* Cislo i jednotka lezi na bilem policku, ne na pozadi stranky - proto
-   vlastni barva, ktera se nehne, az --textColor zesvetli kvuli tmavemu
-   rezimu. */
-.numberField { color: var(--fieldTextColor); }
-.numberField input[type="number"] { color: var(--fieldTextColor); }
-
-/* Symbol v nadpisu endstopu. Kresba je vyplnena, ne tazena, takze bere
-   barvu pres fill="currentColor" a sila cary se ji netyka. Velikost drzi
-   vyska pisma nadpisu, stejne jako u loga v liste. */
-.endstopName svg { color: var(--endstopSymbolColor); }
-
-.endstopName .leverIcon {
-    width: auto;
-    height: 1.4em;
-    flex: 0 0 auto;
-}
-
-/* Obrazky u rychlosti. Kresby uvnitr jsou na currentColor, takze staci
-   nastavit barvu samotnemu SVG - a JS ji muze kdykoliv prepsat podle
-   hodnoty v policku vedle. */
-.stepSizeArrow { color: var(--colorRuler); }
-.speedSizeArrow { color: var(--colorGauge); }
-.spindleSizeArrow { color: var(--colorSpindle); }
-
-/* --- stavy endstopu ---------------------------------------------------
-   Tri tridy, ktere JS prepina na jednotlivych polickach. Doted byla
-   barva "nerozhodnuto" zadratovana primo v .endstopsList div, takze
-   nebylo co prepinat. */
-.endstopsList .endstopUndecided {
-    border-color: var(--endstopUndecidedBorder);
-    color: var(--endstopUndecidedText);
-    background-color: var(--endstopUndecided);
-}
-
-.endstopsList .endstopPressed {
-    border-color: var(--endstopPressedBorder);
-    color: var(--endstopPressedText);
-    background-color: var(--endstopPressed);
-}
-
-.endstopsList .endstopRealeased {
-    border-color: var(--endstopRealeasedBorder);
-    color: var(--endstopRealeasedText);
-    background-color: var(--endstopRealeased);
-}
-
-/* Ikony v navu na barvu textu - jejich tlacitka jsou z barveni tlacitek
-   vyjmuta, takze jim ji nikdo nedal a zustavaly cerne. */
-.navButtons [class*="lucide"] { color: var(--textColor); }
-
-/* --- STOP a PAUSE/CONTINUE --------------------------------------------
-   Nepisi se tu zadna nova pravidla pro pozadi, ramecek ani vlnu - jen se
-   temhle dvema tlacitkum prepisou promenne, ktere uz obecna pravidla pro
-   tlacitka ctou. Diky tomu se stejne chova i vlna pod kurzorem. */
-#stopButton {
-    --buttonColor: var(--stopColor);
-    --hoverColor: var(--stopHoverColor);
-    --buttonBorderColor: var(--stopBorderColor);
-    --buttonTextColor: var(--stopTextColor);
-}
-
-#pauseOrContinueButton {
-    --buttonColor: var(--pauseColor);
-    --hoverColor: var(--pauseHoverColor);
-    --buttonBorderColor: var(--pauseBorderColor);
-    --buttonTextColor: var(--pauseTextColor);
-}
-
-#pauseOrContinueButton.continue {
-    --buttonColor: var(--continueColor);
-    --hoverColor: var(--continueHoverColor);
-    --buttonBorderColor: var(--continueBorderColor);
-    --buttonTextColor: var(--continueTextColor);
-}
-
-/* ETA: stejny pripad jako nazev jobu. Popisek ma z pravidla pro nadpisy
-   padding-top a ikonu vyssi nez jeho text, takze "ETA" sedelo niz nez
-   "0:00", i kdyz cely obsah byl v ramecku vycentrovany. */
-.jobGoingPart > .jobETA .time-label {
-    padding-top: 0;
-    align-items: center;
-}
-
-.jobGoingPart > .jobETA .time-label [class*="lucide"] {
-    width: 1em;
-    height: 1em;
-}
-
-/* --- upload ------------------------------------------------------------
-   Neni to <button>, takze vlnu pod kurzorem nema; dostava vlastni, klidnejsi
-   prechod. Label pokryva celou horni cast seznamu, cimz je i terc.
-   ----------------------------------------------------------------------- */
-/* Upload bere barvy i vlnu ze stejnych promennych jako tlacitka, takze si
-   tu nic neprepisuje - obecna pravidla pro tlacitka plati i na nej.
-   Zbyva jen kurzor, ten <label> sam od sebe nema. */
-.jobListAdd label { cursor: pointer; }
-
-/* --- nav: error a status ------------------------------------------------
-   Byly to dva nejvetsi kusy cele listy, prestoze nesou dve cisla. Mensi
-   symbol, mensi pismo a odsazeni od horni hrany.
-   ----------------------------------------------------------------------- */
-.errorPage,
-.statusPage {
-    /* Stejny margin nahore i dole: bunka zustane v listе vycentrovana a
-       zaroven se nedotyka jejich hran. Jen margin-top ji z osy vytlacil. */
-    margin-block: var(--defaultMargin);
-    padding: var(--defaultPadding) var(--defaultMargin);
-    gap: var(--defaultPadding);
-}
-
-.errorPage div,
-.statusPage div { font-size: .95rem; }
-
-#errorSymbol [class*="lucide"],
-#statusSymbol [class*="lucide"] {
-    width: 42px;
-    height: 42px;
-}
-
-@media (max-width: 800px) {
-    /* Jeden radek: nadpis, dvojice, tlacitka. Na 320 px se do nej vejde
-       jen tehdy, kdyz vysvetlivka v zavorce zmizi a symboly se zmensi -
-       samotne cislo erroru a statusu je to, co ma byt videt na prvni pohled. */
-    /* Nadpis je ta pruzna cast: dvojice i tlacitka dostanou, co potrebuji,
-       a co zbude, pripadne jemu. Bez minmax(0,...) by se nesmrskl pod svuj
-       text a vsechno by se prekryvalo. */
-    .upNav {
-        grid-template-columns: minmax(0, 1fr) auto auto;
-        gap: var(--defaultPadding);
-    }
-
-    .upNav h1 {
-        grid-area: auto;
-        font-size: 1.05rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    /* Ikony navu jsou na telefonu terc palce, ne ozdoba - staci mensi. */
-    .navButtons [class*="lucide"] {
-        width: 22px;
-        height: 22px;
-        height: 22px;
-    }
-
-    .navInfo {
-        grid-area: auto;
-        gap: var(--defaultPadding);
-        flex-wrap: nowrap;
-    }
-
-    /* Obe bunky stejne siroke a smi se zuzit - popis se pak zalomi misto
-       toho, aby roztahl nav. Mensi margin: na telefonu je 16 px nahore
-       i dole proti 75px bunce zbytecne moc. */
-    .errorPage,
-    .statusPage {
-        flex: 1 1 0;
-        min-width: 0;
-        margin-block: var(--defaultPadding);
-    }
-
-    .navButtons {
-        grid-area: auto;
-        padding-inline: 0;
-        gap: var(--defaultPadding);
-    }
-
-    /* Nadpis na telefonu mizi - clovek vi, jakou stranku si otevrel, kdezto
-       "(backend not connected)" je jedina veta, ktera mu rekne, co se deje.
-       Uvolnene misto jde na popis chyby. */
-    .upNav h1 { display: none; }
-
-    #errorSymbol [class*="lucide"],
-    #statusSymbol [class*="lucide"] {
-        width: 20px;
-        height: 20px;
-    }
-
-    .errorPage,
-    .statusPage {
-        padding: 2px 6px;
-        gap: 4px;
-    }
-
-    .errorPage div,
-    .statusPage div { font-size: .75rem; }
+    /* Na uzko uz se popisek vedle policka nevejde, jde nad nej. */
+    .settingsRow { grid-template-columns: minmax(0, 1fr) max-content; }
+    .settingsRow label { grid-column: 1 / -1; }
 }
 
 @media (max-width: 420px) {
@@ -1694,221 +1382,9 @@ textarea { font-family: inherit; }
     .statusPage span:not([id]) { display: none; }
 }
 
-/* h3 uvnitr ma vlastni vychozi margin (1em nahore i dole), ktery bunce
-   pridaval 36 px vysky navic - proto byly tak velke. */
-.errorPage h3,
-.statusPage h3 { margin: 0; }
-
-/* --- logo v nadpisu -----------------------------------------------------
-   SVG ma v atributech 512pt (~683 px) a fill natvrdo, takze prislo obrovske
-   a cerne. Velikost drzi vyska pisma nadpisu, barvu dedi po nem.
-   ----------------------------------------------------------------------- */
-.upNav h1 {
-    display: flex;
-    gap: var(--defaultPadding);
-    align-items: center;
-    margin-inline: var(--defaultPadding);
-}
-
-.upNav h1 svg {
-    width: auto;
-    /* 1.75em vyska nadpisu vyjde na 56 px, tedy presne na velikost ikon
-       v tlacitkach vpravo. */
-    height: 1.75em;
-    color: var(--textColor);
-    flex: 0 0 auto;
-}
-
-/* Sila cary v ikonach na jednom miste. Kresby u rychlosti (pravitko,
-   tachometr, vreteno) zamerne vyjmute - ty maji vlastni tloustky, ktere
-   jsou soucasti kresby. */
-[class*="lucide"] * {
-    vector-effect: non-scaling-stroke;
-    stroke-width: var(--iconStroke);
-}
-
-/* Tlacitka v navu zadny text nemaji, takze "podle textu vedle" pro ne nedava
-   smysl - jejich pismo je vychozich 13 px, z cehoz by u 56px ikony vysla
-   nitka. Dostavaji proto pevnou hodnotu odpovidajici jejich velikosti. */
-.navButtons { --iconStroke: 2.4px; }
-
-
-/* --- nastaveni v popupu ------------------------------------------------
-   <dialog> je do otevreni display: none a showModal() ho sam vycentruje,
-   zatmavi pozadi a chyta Esc, takze se nic z toho nemusi psat v JS. */
-.settingsDialog {
-    border: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    border-radius: var(--defaultRadius);
-    background-color: var(--cardBGColor);
-    color: var(--textColor);
-    box-shadow: var(--shadowStrong);
-    padding: 0;
-    width: min(26rem, calc(100vw - 2 * var(--defaultMargin)));
-}
-
-.settingsDialog::backdrop { background-color: rgb(0 0 0 / 45%); }
-
-.settingsForm {
-    display: grid;
-    gap: var(--partsDistances);
-    padding: var(--defaultMargin);
-}
-
-.settingsTitle {
-    display: flex;
-    align-items: center;
-    gap: var(--defaultPadding);
-    margin: 0;
-}
-
-.settingsTitle svg {
-    width: 1.4em;
-    height: 1.4em;
-    stroke-width: var(--iconStroke);
-}
-
-/* Popisek, policko a sipky na jeden radek. Sirku bere popisek, policko se
-   smrskne az k nemu - proto minmax(0, ...) u obou, jinak by pretekly. */
-.settingsRow {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto) max-content;
-    align-items: center;
-    gap: var(--defaultPadding);
-}
-
-.settingsNote {
-    margin: 0;
-    color: var(--textMutedColor);
-}
-
-.settingsClose {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--defaultPadding);
-}
-
-.settingsClose svg {
-    width: 1.2em;
-    height: 1.2em;
-    stroke-width: var(--iconStroke);
-}
-
-@media (max-width: 800px) {
-    /* Na uzko uz se popisek vedle policka nevejde, jde nad nej. */
-    .settingsRow { grid-template-columns: minmax(0, 1fr) max-content; }
-    .settingsRow label { grid-column: 1 / -1; }
-}
-
-
-/* --- radky seznamu jobu ------------------------------------------------
-   Polozka je pruh pres celou sirku panelu oddeleny linkou, ne karta.
-   Vlevo jmeno a pod nim tlacitka, vpravo cas, datum a velikost pod sebou.
-   Odsazeni nese radek, ne seznam - jinak by linka nedosahla k okrajum. */
-.jobRow {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
-    grid-template-areas:
-        "head  facts"
-        "print facts"
-        "del   facts";
-    gap: var(--defaultPadding) var(--defaultMargin);
-    padding: var(--defaultMargin);
-    border-bottom: var(--borderColor) var(--defaultSolid) var(--borderSize);
-    text-align: left;
-}
-
-.jobRowHead  { grid-area: head; }
-.jobRowFacts { grid-area: facts; }
-.jobRowPrint { grid-area: print; }
-.jobRowDelete { grid-area: del; }
-
-.jobRowHead {
-    display: flex;
-    align-items: center;
-    gap: var(--defaultPadding);
-}
-
-/* Dlouhy nazev souboru nesmi roztahnout cely panel. Nadpis ma vychozi
-   margin 1em nahoru i dolu, ten by radek zbytecne roztahl. */
-.jobRowName {
-    display: flex;
-    align-items: center;
-    gap: var(--defaultPadding);
-    margin: 0;
-    overflow-wrap: anywhere;
-    color: var(--textColor);
-}
-
-.jobRowNameIcon {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-}
-
-/* space-between, ne start: udaje maji vyplnit stejnou vysku, jakou vlevo
-   zaberou nazev a obe tlacitka - jinak by se skrcily nahore a pod nimi by
-   zustala prazdna dira. */
-.jobRowFacts {
-    display: grid;
-    align-content: space-between;
-    gap: var(--defaultPadding);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    color: var(--textMutedColor);
-}
-
-.jobRowFact {
-    display: flex;
-    align-items: center;
-    gap: var(--defaultPadding);
-}
-
-/* Misto na ikonu. Dokud do nej nic nevlozis, nezabira nic - rozlozeni
-   proto sedi i bez ikon. */
-.jobRowIcon {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-}
-
-.jobRowIcon:empty { display: none; }
-
-/* justify-self: start, aby si tlacitka nebrala cely sloupec - roztazena
-   brala misto jmenu i udajum vpravo. min-width je drzi stejne siroka: bez
-   nej je Delete o slovo sirsi nez Print. */
-.jobRowPrint,
-.jobRowDelete {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    justify-self: start;
-    gap: var(--defaultPadding);
-    min-width: 10em;
-}
-
-/* Stejny ramecek jako maji tlacitka jogpadu. Prepisuje se promenna, ne
-   rovnou border-color: obecne pravidlo button:not(...) ma vyssi specificitu
-   nez samotna trida a barvu by si vzalo zpatky. */
-.jobRowPrint {
-    --buttonBorderColor: var(--borderColor);
-}
-
-/* Stejna cervena jako stop. Prepisuji se promenne, ne rovnou barvy - obecna
-   pravidla pro tlacitka si je pak precti sama i s prechodem, stejne jako
-   u #stopButton. */
-.jobRowDelete {
-    --buttonColor: var(--stopColor);
-    --hoverColor: var(--stopHoverColor);
-    --buttonBorderColor: var(--stopBorderColor);
-    --buttonTextColor: var(--stopTextColor);
-}
-
-/* Hlaska pod tlacitkem nahravani - proc se soubor nenahral. */
-.jobUploadNote {
-    margin: var(--defaultPadding) 0 0 0;
-    color: var(--textMutedColor);
-    text-align: center;
-    overflow-wrap: anywhere;
+@media (prefers-reduced-motion: reduce) {
+    button:not(.JobsBut, .settingBut, .stepArrow),
+    .jobListAdd label,
+    .navButtons [class*="lucide"],
+    .stepArrow { transition: none; }
 }
