@@ -41,6 +41,35 @@ struct basicCMD {
         this->speed = speed;
         this->spindleSpeed = spindleSpeed;
     }
+
+    //function created by Claude
+    // Echo prijateho prikazu pro nanoComm. Stejny tvar jako report: cela cisla
+    // v setinach, protoze avr-libc floaty netiskne. lround, ne long(): useknuti
+    // by z 12.34 udelalo 12.33 a echo by se odeslanemu prikazu nepodobalo.
+    void prepareForRPI(char buffer[], size_t bufSize) {
+        // Ramec $$$ ... \n\n\n (zmena ramce: Claude). Prijemci staci najit aspon
+        // jeden '$', cisla za nim si parser najde sam.
+        int offset = 3;
+        buffer[0] = '$';
+        buffer[1] = '$';
+        buffer[2] = '$';
+        offset += snprintf(buffer + offset, bufSize - offset, "%d;", command);
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", lround(position.x * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", lround(position.y * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", lround(z * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", lround(speed * 100));
+        offset += snprintf(buffer + offset, bufSize - offset, "%ld;", lround(spindleSpeed * 100));
+
+        // Na konec se musi vejit tri '\n' a koncova nula.
+        if (offset > (int)bufSize - 4) {
+            offset = bufSize - 4;
+        }
+
+        buffer[offset++] = '\n';
+        buffer[offset++] = '\n';
+        buffer[offset++] = '\n';
+        buffer[offset] = '\0';
+    }
 };
 
 
@@ -64,8 +93,12 @@ struct nanoReport {
     }
 
     void prepareForRPI(char buffer[], size_t bufSize) {
-        int offset = 1;
+        // Ramec $$$ ... \n\n\n (zmena ramce: Claude). Prijemci staci najit aspon
+        // jeden '$', cisla za nim si parser najde sam.
+        int offset = 3;
         buffer[0] = '$';
+        buffer[1] = '$';
+        buffer[2] = '$';
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", status);
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", error);
         offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(position.x * 100));
@@ -75,10 +108,13 @@ struct nanoReport {
         offset += snprintf(buffer + offset, bufSize - offset, "%ld;", long(spindleSpeed * 100));
         offset += snprintf(buffer + offset, bufSize - offset, "%d;", endstops);
 
-        if (offset >= (int)bufSize) {
-            offset = bufSize - 2;
+        // Na konec se musi vejit tri '\n' a koncova nula.
+        if (offset > (int)bufSize - 4) {
+            offset = bufSize - 4;
         }
 
+        buffer[offset++] = '\n';
+        buffer[offset++] = '\n';
         buffer[offset++] = '\n';
         buffer[offset] = '\0';
     }
@@ -661,9 +697,24 @@ struct cnc {
     std::array<uint8_t, 7> motorPins; // enable, X step, X dir, Y .... Z ...
     float conversionConst;
     std::array<uint8_t, 6> endStop;
-    char cmdBuf[64] = {};
+
+    // Stejne hodnoty jako v nanoComm (uartComm) - protokol je na obou stranach
+    // stejny. Nejdelsi ramec (echo reportu od nanoComm) ma i s $ a \n 62 B.
+    static constexpr int largeMessageStandart = 80;
+    static constexpr int conformationMessageStandart = 20;
+
+    // Kolikrat se report posle, nez to Nano vzda (doplnil Claude). Nano nesmi
+    // cekat naporad: kdyz nanoComm report necte, zustalo by viset tady
+    // a nevzalo by uz zadny dalsi prikaz.
+    static constexpr uint8_t maxReportAttempts = 3;
+
+    char cmdBuf[largeMessageStandart] = {};
     nanoReport report;
     basicCMD cmd;
+
+    // Jestli loadCMD opravdu prijal ramec, nebo jen vyprsel Serial.find
+    // (doplnil Claude). Bez toho by nesel rozlisit timeout od prijateho cmd 12.
+    bool frameReceived = false;
 
     cnc(std::array<uint8_t, 7> motorPins, std::array<uint8_t, 6> endStop, uint16_t maxSpindlSpeed = 20000) {
         this->motorPins = motorPins;
@@ -842,6 +893,13 @@ struct cnc {
         myCalib.currentEndstopsError = 0;
         //Serial.print("Loading instruction");
         basicCMD cmd = loadCMD();
+
+        // Prijaty prikaz se nejdriv posle zpatky a provede se az na potvrzeni
+        // od nanoComm (doplnil Claude). Na "ne" nanoComm posle prikaz znovu,
+        // takze se tenhle jen zahodi - bez reportu, stejne jako cmd 12.
+        if (frameReceived && !MakeSureCMD(cmd)) {
+            return;
+        }
         //Serial.print("Operating instruction");
 
         if ((cmd.speed >= .1) && (cmd.command != 2)) {
@@ -866,6 +924,7 @@ struct cnc {
             }
         }
 
+        //pokud je to 9, tak musime udelat instrukci znova
         else if (cmd.command == 0) {
             myCalib.currentError = 4;
         }
@@ -927,11 +986,13 @@ struct cnc {
     basicCMD loadCMD() {
         basicCMD returningCMD = basicCMD();
         size_t len;
+        frameReceived = false;
         //Serial.print("Loading S");
         memset(cmdBuf, 0, sizeof(cmdBuf));
         if (Serial.find('$')) {
+            frameReceived = true;
             //Serial.print("Loading L");
-            len = Serial.readBytesUntil('\n', cmdBuf, 63);
+            len = Serial.readBytesUntil('\n', cmdBuf, sizeof(cmdBuf) - 1);
             cmdBuf[len] = '\0';
             int curChar = 0;
             returningCMD.command = loadNum(cmdBuf, len, curChar);
@@ -944,7 +1005,6 @@ struct cnc {
             }
 
             returningCMD.position.x = loadNum(cmdBuf, len, curChar);
-
             if (cmdBuf[curChar] == ';') {
                 curChar += 1;
             }
@@ -954,7 +1014,6 @@ struct cnc {
             }
 
             returningCMD.position.y = loadNum(cmdBuf, len, curChar);
-
             if (cmdBuf[curChar] == ';') {
                 curChar += 1;
             }
@@ -963,7 +1022,6 @@ struct cnc {
                 return basicCMD(25);
             }
             returningCMD.z = loadNum(cmdBuf, len, curChar);
-
             if (cmdBuf[curChar] == ';') {
                 curChar += 1;
             }
@@ -973,7 +1031,6 @@ struct cnc {
             }
 
             returningCMD.speed = loadNum(cmdBuf, len, curChar);
-
             if (cmdBuf[curChar] == ';') {
                 curChar += 1;
             }
@@ -984,7 +1041,15 @@ struct cnc {
 
             returningCMD.spindleSpeed = loadNum(cmdBuf, len, curChar);
 
+            if (cmdBuf[curChar] == ';') {
+                curChar += 1;
+            }
+
+            else {
+                return basicCMD(25);
+            }
         }
+
         else {
             //Serial.println("Parse failed");
         }
@@ -992,10 +1057,163 @@ struct cnc {
         return returningCMD;
     }
 
+    // Opakovani a potvrzeni doplnil Claude. Na "ne" nebo kdyz echo neprijde,
+    // posle se report znovu - nejvys maxReportAttempts krat.
     void sendNanoReport() {
+        for (uint8_t attempt = 0; attempt < maxReportAttempts; attempt++) {
+            memset(cmdBuf, 0, sizeof(cmdBuf));
+            report.prepareForRPI(cmdBuf, sizeof(cmdBuf));
+            Serial.write(cmdBuf, strlen(cmdBuf));
+
+            if (sendReportConfirmation()) {
+                return;
+            }
+        }
+    }
+
+    //function created by Claude
+    // Kopie hasMajority z nanoComm. V potvrzeni je 14x stejna cifra, takze
+    // jeden dva poskozene znaky rozhodnuti nezmeni. Remiza je "ne".
+    bool hasMajority(const char conformation[], size_t len) {
+        int numOfOnes = 0;
+        int numOfZeros = 0;
+        for (size_t i = 0; i < len; i++) {
+            if (conformation[i] == '1') {
+                numOfOnes += 1;
+            }
+
+            else if (conformation[i] == '0') {
+                numOfZeros += 1;
+            }
+        }
+
+        return numOfOnes > numOfZeros;
+    }
+
+    //function created by Claude
+    // Kopie z nanoComm: "$$$", 14x stejna cifra a "\n\n\n", celkem
+    // conformationMessageStandart bajtu.
+    void sendOnesOrZeros(int toSend) {
+        char message[conformationMessageStandart] = {};
+        for (int i = 0; i < conformationMessageStandart; i++) {
+            if (i < 3) {
+                message[i] = '$';
+            }
+            else if (i >= conformationMessageStandart - 3) {
+                message[i] = '\n';
+            }
+            else {
+                message[i] = '0' + toSend;
+            }
+        }
+        Serial.write(message, conformationMessageStandart);
+    }
+
+    //function created by Claude
+    // Potvrzeni jsou jen cifry 0/1. Sum z nich par poskodi, zahodi nebo prida
+    // bajt navic - to vetsina unese, proto se nehlida presna delka. Prikaz
+    // i report ale vzdycky obsahuji ';', takze se od potvrzeni poznaji porad.
+    // Aspon 10 cifer ze 14, jinak je to spis smeti nez potvrzeni.
+    bool looksLikeConformation(const char buf[], size_t len) {
+        int digits = 0;
+        for (size_t i = 0; i < len; i++) {
+            if (buf[i] == ';') {
+                return false;
+            }
+            if (buf[i] == '0' || buf[i] == '1') {
+                digits += 1;
+            }
+        }
+        return digits >= conformationMessageStandart - 10;
+    }
+
+    //function created by Claude
+    // Protejsek MakeSureReport z nanoComm: posle prijaty prikaz zpatky a pocka,
+    // jestli ho nanoComm uzna za stejny. true jen na jasne "ano" - cokoliv
+    // jineho (timeout, poskozene potvrzeni) znamena, ze se prikaz neprovede.
+    bool MakeSureCMD(basicCMD &cmd) {
         memset(cmdBuf, 0, sizeof(cmdBuf));
-        report.prepareForRPI(cmdBuf, 64);
+        cmd.prepareForRPI(cmdBuf, sizeof(cmdBuf));
         Serial.write(cmdBuf, strlen(cmdBuf));
+
+        if (!Serial.find('$')) {
+            return false;
+        }
+
+        char conformation[conformationMessageStandart] = {};
+        size_t len = Serial.readBytesUntil('\n', conformation, sizeof(conformation) - 1);
+
+        // Cokoliv, co nevypada jako potvrzeni - treba znovu poslany prikaz, kdyz
+        // nanoComm echo nedostal - se bere jako "ne", at se omylem nic
+        // neprovede. Zbytek delsiho ramce smete pristi Serial.find('$').
+        if (!looksLikeConformation(conformation, len)) {
+            return false;
+        }
+
+        return hasMajority(conformation, len);
+    }
+
+    //function created by Claude
+    // Rozparsuje report, ktery nanoComm poslal zpatky. Stejne poradi poli jako
+    // nanoReport::prepareForRPI, jen hodnoty jsou uz v mm (nanoComm je vydelil
+    // stem). Kazde pole musi koncit ';', jinak je ramec rozbity.
+    bool loadReport(char *buffer, size_t len, nanoReport &echoed) {
+        float fields[8];
+        int curChar = 0;
+        for (uint8_t i = 0; i < 8; i++) {
+            fields[i] = loadNum(buffer, len, curChar);
+            if (buffer[curChar] != ';') {
+                return false;
+            }
+            curChar += 1;
+        }
+
+        echoed = nanoReport(fields[0], fields[1], {fields[2], fields[3]}, fields[4], fields[5], fields[6], fields[7]);
+        return true;
+    }
+
+    //function created by Claude
+    // Nano posila long(x * 100), nanoComm to vydeli stem a posle zpatky, takze
+    // po lround(x * 100) musi vyjit presne stejne cele cislo. Tolerance tu
+    // proto neni potreba a nic se neschova pod ni.
+    bool sameHundredths(float sent, float echoed) {
+        return long(sent * 100) == lround(echoed * 100);
+    }
+
+    //function created by Claude
+    // Protejsek sameCMDs z nanoComm.
+    bool sameReports(const nanoReport &sent, const nanoReport &echoed) {
+        return sent.status == echoed.status
+            && sent.error == echoed.error
+            && sent.endstops == echoed.endstops
+            && sameHundredths(sent.position.x, echoed.position.x)
+            && sameHundredths(sent.position.y, echoed.position.y)
+            && sameHundredths(sent.z, echoed.z)
+            && sameHundredths(sent.speed, echoed.speed)
+            && sameHundredths(sent.spindleSpeed, echoed.spindleSpeed);
+    }
+
+    //function created by Claude
+    // Protejsek sendCMDConfirmation z nanoComm: precte report, ktery nanoComm
+    // poslal zpatky, porovna ho s odeslanym a odpovi 14x "1" nebo 14x "0".
+    // Kdyz echo neprijde vubec, nic neposila - report se proste posle znovu.
+    bool sendReportConfirmation() {
+        memset(cmdBuf, 0, sizeof(cmdBuf));
+        if (!Serial.find('$')) {
+            return false;
+        }
+
+        size_t len = Serial.readBytesUntil('\n', cmdBuf, sizeof(cmdBuf) - 1);
+        cmdBuf[len] = '\0';
+
+        nanoReport echoed;
+        if (loadReport(cmdBuf, len, echoed) && sameReports(report, echoed)) {
+            sendOnesOrZeros(1);
+            return true;
+        }
+
+        sendOnesOrZeros(0);
+        return false;
     }
 
     void moveZ(float z) {

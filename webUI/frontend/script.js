@@ -24,9 +24,10 @@ const jobCanvasPxPerMm = 10
 // Sirka cary = sirka toho, co hrot odfrezuje.
 const toolWidthMm = 0.6
 
-// Nad touhle vyskou hrot nerez. Rezna hloubka je s korekci naklonu 1.2 az
-// 2.2 mm (cutZForX v nanoComm), prejezdy jedou na zsafe - 3 mm to oddeli
-// s rezervou na obe strany.
+// Nad touhle vyskou hrot nerez. Rez jede na cutZAtXMax (1.2 mm, korekce
+// naklonu je od prestavby hlavy vypnuta), prejezdy na zsafe - 3 mm to oddeli
+// s rezervou na obe strany. Kdyby se korekce zase zapnula, rez jde az na
+// 2.2 mm u X min a 3 mm porad staci.
 const zDig = 3
 
 const jobCanvasColor = "#c8803a"    // med
@@ -157,6 +158,7 @@ const errorMessages = {
         7:  { badness: 3, text: "Serial port is not open. Check the cable and the port name." },
         10: { badness: 3, text: "Job was stopped before the end because the Nano reported an error or stopped answering." },
         11: { badness: 1, text: "Job ran to the end of the file. Spindle is off and the machine is homed." },
+        17: { badness: 3, text: "No complete report came from the Nano in time. It is stuck, unplugged, or a confirmation got lost on the wire." },
 
         // 162 a 163 nejsou chyby, jsou to znacky (viz commProtocol.txt).
         // Do panelu by se vubec dostat nemely - backend 163 preposila jako

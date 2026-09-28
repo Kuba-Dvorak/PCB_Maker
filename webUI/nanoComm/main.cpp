@@ -176,9 +176,12 @@ struct Position {
 };
 
 
+// Ramec pro UART: zacatek $$$, konec \n\n\n. Prijemci staci najit aspon jeden
+// '$' - cisla za nim uz parser najde sam, protoze preskakuje vsechno, co
+// neni cislice. A kdyz se prvni '\n' poskodi, ramec ukonci druhy.
 void markString(std::string &curString) {
-    curString += '\n';
-    curString.insert(0, "$");
+    curString += "\n\n\n";
+    curString.insert(0, "$$$");
 }
 
 
@@ -239,6 +242,33 @@ struct nanoReport {
         this->speed = speed;
         this->spindlSpeed = spindlSpeed;
         this->endstops = endstops;
+    }
+
+    void prepareForNano(char buffer[], size_t bufSize) {
+        std::string prepareString;
+        prepareString += std::to_string(status);
+        prepareString += ';';
+        prepareString += std::to_string(error);
+        prepareString += ';';
+        prepareString += std::to_string(position.x);
+        prepareString += ';';
+        prepareString += std::to_string(position.y);
+        prepareString += ';';
+        prepareString += std::to_string(z);
+        prepareString += ';';
+        prepareString += std::to_string(speed);
+        prepareString += ';';
+        prepareString += std::to_string(spindlSpeed);
+        prepareString += ';';
+        prepareString += std::to_string(endstops);
+        prepareString += ';';
+        markString(prepareString);
+        if (prepareString.length() >= bufSize) {
+            std::cout << "[UART] Prepared command is too long for UART buffer and will be truncated. Length: "
+                      << prepareString.length() << ", buffer size: " << bufSize << "." << std::endl;
+        }
+        std::strncpy(buffer, prepareString.c_str(), bufSize - 1);
+        buffer[bufSize - 1] = '\0';
     }
 };
 
@@ -318,7 +348,53 @@ bool reportHasDelimiter(const std::string &curString, int curChar, const char *f
 }
 
 
-void datafieng(std::string &curString, nanoReport &changeReport) {
+void loadCMD(std::string &curString, basicCMD &changeCMD) {
+    if (curString.empty()) {
+        std::cout << "[UART] Malformed Nano report: empty payload." << std::endl;
+        return;
+    }
+
+    int curChar = 0;
+    changeCMD.command = int(loadNumberForData(curChar, curString));
+    if (reportHasDelimiter(curString, curChar, "status")) {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeCMD.position.x = loadNumberForData(curChar, curString) / 100;
+    if (reportHasDelimiter(curString, curChar, "x")) {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeCMD.position.y = loadNumberForData(curChar, curString) / 100;
+    if (reportHasDelimiter(curString, curChar, "y")) {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeCMD.z = loadNumberForData(curChar, curString) / 100;
+    if (reportHasDelimiter(curString, curChar, "z")) {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeCMD.speed = loadNumberForData(curChar, curString) / 100;
+    if (reportHasDelimiter(curString, curChar, "speed")) {
+        curChar += 1;
+    }
+    else {
+        return;
+    }
+    changeCMD.spindleSpeed = loadNumberForData(curChar, curString) / 100;
+}
+
+
+void loadReport(std::string &curString, nanoReport &changeReport) {
     if (curString.empty()) {
         std::cout << "[UART] Malformed Nano report: empty payload." << std::endl;
         return;
@@ -375,7 +451,11 @@ void datafieng(std::string &curString, nanoReport &changeReport) {
         return;
     }
     changeReport.endstops = int(loadNumberForData(curChar, curString));
-    return;
+}
+
+
+bool approxEqual(float a, float b, float tolerance) {
+    return std::abs(a - b) <= tolerance;
 }
 
 
@@ -384,6 +464,11 @@ struct uartComm {
     bool occupied;
     int baundWith;
     int serialID;
+    // static constexpr, ne obycejny int: velikost pole musi byt znama uz pri
+    // prekladu. S obycejnou promennou by z kazdeho bufferu bylo pole
+    // promenne delky, a to C++ nema - projde jen jako rozsireni GCC.
+    static constexpr int largeMessageStandart = 80;
+    static constexpr int conformationMessageStandart = 20;
 
     uartComm(std::string port = "/dev/ttyUSB0", int baundWith = 9600) {
         this->port = port;
@@ -446,8 +531,7 @@ struct uartComm {
         std::cout << "[UART] Port " << port << " successfully opened at " << baundWith << " baud." << std::endl;
     }
 
-    // Prelozi cislo prikazu na jmeno podle commProtocol.txt, aby se z konzole
-    // dalo poznat, co se posila, bez listovani v tabulce.
+
     const char* nameOfCMD(uint8_t command) {
         switch (command) {
             case 0:   return "ping";
@@ -465,8 +549,7 @@ struct uartComm {
         }
     }
 
-    // -1 znamena "tohle pole ignoruj". Nesmi to byt pomlcka ani nic, co jde
-    // splest s minusem - na drat jde porad -1.000000, tohle je jen popisek.
+
     std::string fieldOfCMD(float value) {
         if (value == -1) {
             return "unset";
@@ -479,8 +562,176 @@ struct uartComm {
         return out.str();
     }
 
+
+    int hasMajority(std::string conformation) {
+        int numOfOnes = 0;
+        int numOfZeros = 0;
+        for (int i = 0; i < conformation.length(); i++) {
+            if (conformation[i] == '1') {
+                numOfOnes += 1;
+            }
+
+            else if (conformation[i] == '0') {
+                numOfZeros += 1;
+            }
+        }
+
+        if (numOfOnes > numOfZeros) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+
+    bool sameCMDs(basicCMD const &originalCMD, basicCMD const &secondCMD) {
+        if (originalCMD.command != secondCMD.command) {
+            return false;
+        }
+
+        if (!approxEqual(originalCMD.position.x, secondCMD.position.x, 0.05)) {
+            return false;
+        }
+
+        if (!approxEqual(originalCMD.position.y, secondCMD.position.y, 0.05)) {
+            return false;
+        }
+
+        if (!approxEqual(originalCMD.z, secondCMD.z, 0.05)) {
+            return false;
+        }
+
+        if (!approxEqual(originalCMD.speed, secondCMD.speed, 0.05)) {
+            return false;
+        }
+
+        if (!approxEqual(originalCMD.spindleSpeed, secondCMD.spindleSpeed, 0.05)) {
+            return false;
+        }
+        return true;
+    }
+
+
+    void sendOnesOrZeros(int toSend) {
+        if (occupied) {
+            return;
+        }
+        occupied = true;
+
+        if (serialID == -1) {
+            std::cout << "[UART] Cannot send conformation CMD" << std::endl;
+            occupied = false;
+            return;
+        }
+
+        // $$$, 14 cifer a \n\n\n - dohromady conformationMessageStandart.
+        std::string message = "$$$";
+        for (int i = 0; i < conformationMessageStandart - 6; i++) {
+            message.push_back(('0' + toSend));
+        }
+
+        message += "\n\n\n";
+
+        char buffer[conformationMessageStandart + 1];
+        std::strncpy(buffer, message.c_str(), sizeof(buffer) - 1);
+        buffer[conformationMessageStandart] = '\0';
+
+        std::string frame(buffer);
+        if (!frame.empty() && frame.back() == '\n') {
+            frame.pop_back();
+        }
+
+        ssize_t result = write(serialID, buffer, strlen(buffer));
+
+        if (result < 0) {
+            std::cout << "[UART] Failed to write command to " << port << ": " << std::strerror(errno) << "." << std::endl;
+        }
+
+        else if (result < static_cast<ssize_t>(strlen(buffer))) {
+            std::cout << "[UART] Partial command write to " << port << ": wrote " << result
+                      << " of " << strlen(buffer) << " bytes." << std::endl;
+        }
+
+        occupied = false;
+    }
+
+
+    bool sendCMDConfirmation(basicCMD cmd) {
+        //nejdriv poslouchame, pak posilame conformation
+        if (occupied) {
+            return false;
+        }
+        occupied = true;
+        std::string readBuffer = "";
+        char buffer2[largeMessageStandart] = {};
+        ssize_t result2;
+        bool started = false;
+        bool complete = false;
+        std::chrono::seconds timeOut = std::chrono::seconds(60);
+        std::chrono::time_point deadLine = std::chrono::steady_clock::now() + timeOut;
+        while (std::chrono::steady_clock::now() <= deadLine) {
+            result2 = read(serialID, buffer2, sizeof(buffer2));
+
+            if (result2 == 0) {
+                continue;
+            }
+
+            if (result2 < 0) {
+                close(serialID);
+                serialID = -1;
+                occupied = false;
+                std::cout << "[UART] Arduino disconnected while reading command on port " << port << "." << std::endl;
+                return false;
+            }
+
+            std::string currentData = std::string(buffer2, result2);
+
+            if (!started) {
+                size_t startChar = currentData.find('$');
+
+                if (startChar == std::string::npos) {
+                    continue;
+                }
+                started = true;
+                currentData.erase(0, startChar + 1);
+            }
+
+            if (started) {
+                size_t endChar = currentData.find('\n');
+
+                if (endChar == std::string::npos) {
+                    readBuffer.append(currentData);
+                    continue;
+                }
+
+                else {
+                    currentData.erase(endChar);
+                    readBuffer.append(currentData);
+                    complete = true;
+                    break;
+                }
+            }
+        }
+
+        occupied = false;
+        if (!complete) {
+            return false;
+        }
+        basicCMD recievedCMD;
+        loadCMD(readBuffer, recievedCMD);
+        if (sameCMDs(cmd, recievedCMD)) {
+            sendOnesOrZeros(1);
+            return true;
+        }
+        sendOnesOrZeros(0);
+        return false;
+    }
+
+
     void sendBasicCMD(basicCMD cmd) {
-        (void)cmd;
+        if (occupied) {
+            return;
+        }
         occupied = true;
 
         if (serialID == -1) {
@@ -490,17 +741,14 @@ struct uartComm {
             return;
         }
 
-        char buffer[64] = {};
+        char buffer[largeMessageStandart] = {};
         cmd.prepareForNano(buffer, sizeof(buffer));
 
-        // Ramec konci '\n', ktery by v logu udelal prazdny radek navic.
         std::string frame(buffer);
         if (!frame.empty() && frame.back() == '\n') {
             frame.pop_back();
         }
 
-        // Log jde pred write zamerne: kdyz zapis selze, prectou se ty dva radky
-        // za sebou jako "tohle jsem posilal" a "a takhle to dopadlo".
         std::cout << "[UART] -> Nano: cmd " << int(cmd.command) << " (" << nameOfCMD(cmd.command) << ")"
                   << " X=" << fieldOfCMD(cmd.position.x)
                   << " Y=" << fieldOfCMD(cmd.position.y)
@@ -519,12 +767,15 @@ struct uartComm {
             std::cout << "[UART] Partial command write to " << port << ": wrote " << result
                       << " of " << strlen(buffer) << " bytes." << std::endl;
         }
+
         occupied = false;
+        if (sendCMDConfirmation(cmd)) {
+            return;
+        }
+        sendBasicCMD(cmd);
     }
 
-    // Report z Nana nese jen cislo. Tohle ho prelozi do vety, aby se z konzole
-    // dalo poznat, co se stalo, bez listovani v commProtocol.txt. Error 0 se
-    // schvalne nelogruje - to by pri jobu psalo radek ke kazdemu prikazu.
+
     void consoleLogFromError(int error, uint8_t endstops = 0) {
         switch (error) {
             case 0:
@@ -569,8 +820,7 @@ struct uartComm {
         }
     }
 
-    // Maska koncaku je latchovana za cely posledni prikaz, takze staci vypsat
-    // ji jednou po prijeti reportu. Nula je bezny stav a ta se nelogruje.
+
     void consoleLogFromEndstops(uint8_t endstops) {
         if (endstops == 0) {
             return;
@@ -586,37 +836,132 @@ struct uartComm {
         std::cout << "." << std::endl;
     }
 
-    nanoReport listenUART() {
+
+    bool MakeSureReport(nanoReport report) {
+        if (occupied) {
+            return false;
+        }
+        occupied = true;
+        //sending part
+
+        if (serialID == -1) {
+            std::cout << "[UART] Cannot send conformation report " << report.error << ", serial port is not open." << std::endl;
+            occupied = false;
+            return false;
+        }
+
+        char buffer[largeMessageStandart] = {};
+        report.prepareForNano(buffer, sizeof(buffer));
+
+        std::string frame(buffer);
+        if (!frame.empty() && frame.back() == '\n') {
+            frame.pop_back();
+        }
+
+        std::cout << "[UART] sending report conformation" << std::endl;
+
+        ssize_t result = write(serialID, buffer, strlen(buffer));
+
+        if (result < 0) {
+            std::cout << "[UART] Failed to write command to " << port << ": " << std::strerror(errno) << "." << std::endl;
+        }
+
+        else if (result < static_cast<ssize_t>(strlen(buffer))) {
+            std::cout << "[UART] Partial command write to " << port << ": wrote " << result
+                      << " of " << strlen(buffer) << " bytes." << std::endl;
+        }
+
+        occupied = false;
+
+        //recieving part
+        std::string readBuffer = "";
+        char buffer2[conformationMessageStandart] = {};
+        ssize_t result2;
+        bool started = false;
+        bool complete = false;
+        std::chrono::seconds timeOut = std::chrono::seconds(60);
+        std::chrono::time_point deadLine = std::chrono::steady_clock::now() + timeOut;
+        while (std::chrono::steady_clock::now() <= deadLine) {
+            result2 = read(serialID, buffer2, sizeof(buffer2));
+
+            if (result2 == 0) {
+                continue;
+            }
+
+            if (result2 < 0) {
+                close(serialID);
+                serialID = -1;
+                occupied = false;
+                std::cout << "[UART] Arduino disconnected while reading command on port " << port << "." << std::endl;
+                return false;
+            }
+
+            std::string currentData = std::string(buffer2, result2);
+
+            if (!started) {
+                size_t startChar = currentData.find('$');
+
+                if (startChar == std::string::npos) {
+                    continue;
+                }
+                started = true;
+                currentData.erase(0, startChar + 1);
+            }
+
+            if (started) {
+                size_t endChar = currentData.find('\n');
+
+                if (endChar == std::string::npos) {
+                    readBuffer.append(currentData);
+                    continue;
+                }
+
+                else {
+                    currentData.erase(endChar);
+                    readBuffer.append(currentData);
+                    complete = true;
+                    break;
+                }
+            }
+        }
+
+        if (!complete) {
+            return false;
+        }
+
+        // Potvrzeni jsou jen cifry. Ramec se ';' je prikaz nebo report (treba
+        // znovu poslany, kdyz Nano nedostalo echo) - ten se nehlasuje.
+        if (readBuffer.find(';') != std::string::npos) {
+            return false;
+        }
+
+        return hasMajority(readBuffer);
+    }
+
+
+    nanoReport listenUART(int deadlineTime = 600) {
         if (!occupied) {
             occupied = true;
             nanoReport data = nanoReport(1, 0);
-
             if (serialID == -1) {
                 std::cout << "[UART] Cannot listen: serial port is not open." << std::endl;
                 occupied = false;
                 return nanoReport(1, 7);
             }
-
             std::string readBuffer = "";
-            char buffer[64] = {};
+            char buffer[largeMessageStandart] = {};
             ssize_t result;
             bool started = false;
             bool complete = false;
 
-            // VTIME = 1 znamena, ze read() se vraci prazdny kazdych 100 ms.
-            // Logovat kazdy takovy pokus by pri cekani na dlouhy pohyb zaplavilo
-            // konzoli tisicema radku a zahltilo UART hlaskou o tom, ze se ceka.
-            // Proto se hlasi az kazdy padesaty pokus, tedy zhruba po peti
-            // sekundach ticha - to uz je doba, kdy stoji za to vedet, ze se ceka.
             const long logEveryNthPoll = 50;
             long emptyReads = 0;
             long ignoredChunks = 0;
-
-            std::chrono::seconds timeOut = std::chrono::seconds(600);
+            std::chrono::seconds timeOut = std::chrono::seconds(deadlineTime);
             std::chrono::time_point deadLine = std::chrono::steady_clock::now() + timeOut;
 
             while (std::chrono::steady_clock::now() <= deadLine) {
-                result = read(serialID, buffer, 64);
+                result = read(serialID, buffer, sizeof(buffer));
 
                 if (result == 0) {
                     emptyReads += 1;
@@ -642,9 +987,6 @@ struct uartComm {
 
                     if (startChar == std::string::npos) {
                         ignoredChunks += 1;
-                        // Prvni zahozeny kus se hlasi hned, protoze uz jeden
-                        // znamena rozsypany ramec. Dal se to throttluje, aby
-                        // trvale zaneseny port neprevalcoval zbytek logu.
                         if (ignoredChunks == 1 || ignoredChunks % logEveryNthPoll == 0) {
                             std::cout << "[UART] Ignoring " << result << " B without a $ start marker on port " << port
                                       << ", " << ignoredChunks << " chunk(s) dropped so far." << std::endl;
@@ -668,7 +1010,7 @@ struct uartComm {
                     }
 
                     else {
-                        currentData.erase(endChar, 64);
+                        currentData.erase(endChar);
                         readBuffer.append(currentData);
                         complete = true;
                         break;
@@ -679,22 +1021,18 @@ struct uartComm {
 
             occupied = false;
 
-            // POZOR: kdyz vyprsi deadline, cyklus skonci uplne stejne jako po
-            // uspesnem prijeti a datafieng dole rozparsuje to, co zbylo v
-            // bufferu. Report pak odejde jako status 1 / error 0, tedy "vse
-            // v poradku", i kdyz Nano deset minut neposlalo nic. Nez se to
-            // opravi navratovou hodnotou, aspon at je to videt v konzoli.
             if (!complete) {
-                std::cout << "[UART] Timed out after " << timeOut.count() << " s without a complete report from " << port
-                          << ". Start marker " << (started ? "was seen" : "never arrived")
-                          << ", " << readBuffer.length() << " B buffered. Nano is most likely stuck or reset."
-                          << std::endl;
+                return {1, 17};
             }
 
             std::cout << "[UART] Received Nano report payload: " << readBuffer << std::endl;
-            datafieng(readBuffer, data);
+            loadReport(readBuffer, data);
+            std::cout << "[UART] Confirming" << std::endl;
             consoleLogFromError(data.error, data.endstops);
             consoleLogFromEndstops(data.endstops);
+            if (!MakeSureReport(data)) {
+                return listenUART(60);
+            }
             return data;
         }
         std::cout << "[UART] Cannot listen: UART is already occupied." << std::endl;
@@ -709,82 +1047,18 @@ struct gcodeDecoder {
     std::array<char, 2> commandChars = {'G', 'M'};
     std::array<char, 7> instructionChars = {'X', 'Y', 'Z', 'I', 'J', 'F', 'S'};
 
-    // --- naklon stolu -----------------------------------------------------
-    // Deska stolu neni vodorovna, smerem k max X KLESA. Korekce je linearni
-    // v X a je to vlastnost STROJE, ne desky - proto se pocita ze souradnic
-    // stroje a ne z rozsahu, ktery ma zrovna nacteny soubor. Kdyby se brala
-    // z desky, dostala by mala deska uprostred stolu cely spad na par mm.
-    //
-    // V ose Y stroj naklon nema, meren 15. 8. 2026, proto tu zadny clen pro
-    // Y neni. Co se v Y meni, je posazeni DESKY - kazda lezi jinak a zadna
-    // konstanta to netrefi. Proto se Y nekompenzuje a misto toho se jede o
-    // kousek hloubeji, viz cutZAtXMax. Kdyby naklon v Y mel i stroj, primka
-    // v X uz by nestacila a musela by nastoupit rovina ze tri bodu.
-    //
-    // ZNAMENKO. Do 15. 8. 2026 tu byly dve absolutni hodnoty, ktere si mezi
-    // sebou uz jednou vymenily misto, protoze priznak "na max X to nerezne"
-    // vyrobi stejne dobre obracene znamenko jako moc male rozpeti. Z toho
-    // priznaku se ty dva pripady rozlisit NEDA. Jedina kontrola je dotek na
-    // obou koncich pri tiltEnabled = false - a vetsi Z patri tam, kde je
-    // stul VYS, tedy na X min.
-    //
-    // Vypinac pro A/B test. false = zadna korekce, do kazdeho rezneho pohybu
-    // se dosadi rovnou cutZAtXMax, takze se Z za celou dratu nehne a chova
-    // se to jako pred zavedenim levelingu. Slouzi k rozliseni, jestli
-    // pripadny problem dela naklon, nebo neco jineho.
-    bool tiltEnabled = true;
+    bool tiltEnabled = false;
 
     float tiltXMin = 3.0f, tiltXMax = 57.0f;
 
-    // O kolik stul klesne mezi tiltXMin a tiltXMax. Prvni odhad z 15. 8. 2026
-    // byl 0.5 mm, premereno 16. 8. 2026 na ~1 mm pres celou pojezdovou drahu
-    // X, tedy pres 0 az 60. Prepocteno na pouzitelne pasmo 3 az 57 by z toho
-    // vyslo 0.90; zustava tu rovnou 1.00, protoze o kousek hlubsi rez vadi
-    // min nez rez, ktery se na jednom konci desky nedotkne. Kdyby to na X min
-    // zabiralo uz moc, je 0.90 ta striktne prepoctena hodnota.
     float tiltDrop = 1.00f;
 
-    // --- kde je nula ------------------------------------------------------
-    // Nastroj se sazi tak, ze se sjede Z na minimum (po homingu na min je to
-    // Z 1.0, viz MINIMAL_DISTANCE_MM_Z v nanoCode/src/main.cpp), freza se
-    // zasune do klestiny na doraz o desku a klestina se utahne. Rezna hloubka
-    // se pak nastavi tim, kolikrat se klikne krokem 0.1 nad to minimum.
-    // Vylozeni nastroje se tedy do zadne konstanty neuklada, vytvari se znovu
-    // pri kazde vymene - proto tady staci absolutni Z a nemusi to byt
-    // relativni k necemu, co by se muselo merit.
-    //
-    // Ma to ale jednu podminku: deska, o kterou se freza dorazi, je soucast
-    // toho nakloneneho stolu. Sazet nastroj pokazde na jinem X znamena
-    // dorazit o jinak vysoky bod a posunout nulu az o celych tiltDrop.
-    // PROTO SE NASTROJ SAZI VZDY NA MAX X.
-    //
-    // Anchor korekce lezi na tomtez konci schvalne. clampZ ve firmwaru srazi
-    // vsechno pod 0.9 a hodi error 6, ktery utne job uprostred rezu - a mezi
-    // minimem 1.0 a tou podlahou je jen 0.1 mm. Kdyby byl anchor na X min,
-    // druhy konec by spadl na 1.2 - 1.0 = 0.2, tedy hluboko pod podlahu, a
-    // sla by pres clamp cela spodni polovina desky. Takhle korekce od anchoru
-    // jen stoupa.
-    //
-    // Rezne Z na max X = minimum 1.0 + pocet kliku * 0.1. Tady jsou dosazeny
-    // dva kliky, stav k 16. 8. 2026. Pri jednom nebo trech sem patri 1.1 nebo
-    // 1.3. Tenhle konstantni prevys nad dotekem je zaroven to, cim se resi
-    // ruzne posazeni desky v Y - proto radsi o klik vic nez min.
     float cutZAtXMax = 1.2f;
 
-    // Hloubka rezu, kterou pise pcb2gcode (zwork v printer/millproject).
-    // Slouzi VYHRADNE jako znacka "tenhle Z je rezny" pro detekci v
-    // applyMachineState. Skutecnou hodnotu urcuje cutZAtXMax vyse a s touhle
-    // se shodovat nemusi - od 16. 8. 2026 se uz neshoduje (1.1 proti 1.2). Kdyz se zmeni zwork v millproject, musi se zmenit
-    // i tady, jinak se rezne pohyby prestanou poznavat a korekce se prestane
-    // dosazovat uplne.
     float gcodeCutZ = 1.1f;
 
-    // Kroku na 1 mm osy Z, musi sedet se stepLenghtT8 v nanoCode/src/main.cpp.
     float zStepsPerMM = 200.0f;
 
-    // Stav, ktery samotny radek G-kodu nenese. pcb2gcode pise Z jen kdyz se
-    // meni, takze "G01 X.. Y.." samo o sobe nerekne, jestli se rezze nebo
-    // prejizdi nad deskou. A M3 posila bez S.
     float lastX = -1;
     float lastSpindleSpeed = -1;
     bool cutting = false;
@@ -894,8 +1168,6 @@ struct gcodeDecoder {
             else if (curNum == 5) {
                 return 6;
             }
-            // pcb2gcode zavira soubor prikazem M2, jine generatory posilaji
-            // M30. Obe znamenaji konec programu, tak se bere oboji.
             else if (curNum == 2 || curNum == 30) {
                 return 7;
             }
@@ -924,19 +1196,6 @@ struct gcodeDecoder {
     }
 
 
-    // Hloubka rezu pro dane X po zapocteni naklonu stolu, zaokrouhlena na
-    // cely krok osy Z. To zaokrouhleni neni kosmetika: sklon je 0.0185 mm
-    // na 1 mm X, takze na beznem segmentu (median 0.23 mm) vyjde zmena Z
-    // 0.0043 mm, porad pod jeden krok 0.005 mm. Kdyby se posilaly
-    // nezaokrouhlene hodnoty,
-    // firmware by kazdou z nich orizl na nula kroku a naklon by se nikdy
-    // neprojevil. Takhle se Z drzi na mrizce a posune se o presne jeden krok
-    // vzdycky, kdyz uz na nej X ujelo dost.
-    //
-    // Anchor je na max X, kde se sazi nastroj, a odtud korekce jen STOUPA
-    // smerem k X min - viz duvod u cutZAtXMax. Mimo pasmo se X orizne, takze
-    // pripadny pohyb za tiltXMin/Max drzi hodnotu krajniho bodu a nikdy
-    // neextrapoluje.
     float cutZForX(float x) const {
         if (!tiltEnabled) {
             return cutZAtXMax;
@@ -957,13 +1216,7 @@ struct gcodeDecoder {
     }
 
 
-    // Doplni do instrukce to, co v ni pcb2gcode nenapsal, ale firmware to
-    // potrebuje: otacky vretena a Z opravene o naklon stolu. Obojí zavisi
-    // na predchozich radcich, proto to nemuze byt v createCMD().
     void applyMachineState(basicCMD &cmd) {
-        // pcb2gcode posila "M3" bez S. Bez zapamatovani posledniho S by
-        // controlSpindl() dostal -1, hned by se vratil a vreteno by po
-        // uvodnim M5 zustalo stat cely job.
         if (cmd.spindleSpeed > -0.5f) {
             lastSpindleSpeed = cmd.spindleSpeed;
         }
@@ -976,8 +1229,6 @@ struct gcodeDecoder {
             lastX = cmd.position.x;
         }
 
-        // Explicitni Z je jediny okamzik, kdy se da poznat, jestli se od ted
-        // rezze nebo prejizdi. Vyjezdy na zsafe/zchange tim rez ukonci.
         if (cmd.z > -0.5f) {
             cutting = std::fabs(cmd.z - gcodeCutZ) < 0.001f;
         }
@@ -996,10 +1247,6 @@ struct gcodeDecoder {
     }
 
 
-    // Kolik radku soubor ma. Postup uz se podle radku nehlasi, tohle cislo
-    // zustava kvuli odhadu zbyvajiciho casu: zmereny cas na 40 prikazu
-    // vydeleny ctyriceti a vynasobeny poctem radku da odhad celku.
-    // Pocita se az na vyzadani, soubor ma radove desitky kB.
     int totalLines() const {
         if (gcodeText.empty()) {
             return 0;
@@ -1019,15 +1266,6 @@ struct gcodeDecoder {
                 break;
             }
 
-            // pcb2gcode pise komentare do kulatych zavorek a ty jsou plne
-            // pismen, ktera tenhle dekoder jinak cte jako prikazy a parametry:
-            //   "( Millimeters per minute feed rate. )" -> M bez cisla
-            //   "( RPM spindle speed. )"                -> M bez cisla
-            //   "( Mill infeed pass 1/1 )"              -> dokonce M1
-            //   "( Feedrate. )"                         -> F bez cisla
-            // To posledni je nejhorsi: loadNumber() vrati -1, createCMD z toho
-            // udela speed = -1/60 = -0.0167 mm/s a prepise tim spravnych
-            // 3.33 mm/s, ktere na tom radku opravdu byly. Cely blok vcetne
             // zavorek se proto musi preskocit.
             if (gcodeText[currentChar] == '(') {
                 size_t commentEnd = gcodeText.find(')', currentChar);
@@ -1305,9 +1543,6 @@ struct clockThing {
         lineNum = 0;
         fullLenghtSec = 0;
         lineFullCount = gcodeLines;
-
-        // Bez tohohle meri prvni segment od epochy steady_clocku, tedy od
-        // startu masiny, a prvni odhad by vysel v hodinach.
         beginClock();
     }
 
@@ -1334,10 +1569,6 @@ struct communicator {
     fs::path gcodePathRemebered;
     size_t rememberedChar = 0;
     nanoReport remeberedReport = nanoReport(1);
-
-    // Vyska, na kterou se stroj zvedne pri navratu z pauzy, nez se rozjede
-    // v XY. Musi byt nad povrchem desky - drz to shodne se zsafe
-    // v printer/millproject.
     float resumeSafeZ = 10.0f;
     bool started = false;
     basicCMD lastCMD;
@@ -1349,6 +1580,7 @@ struct communicator {
         myEmergencyUser = tcpCommUser(5001);
         homed = false;
     }
+
 
     void setup() {
         std::cout << "[SETUP] Starting command/report TCP server." << std::endl;
@@ -1404,13 +1636,7 @@ struct communicator {
             rememberedChar = 0;
             if (message == 4) {
                 myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
-
-                // Report tohohle homingu musi nekdo precist jeste tady. Bez
-                // toho by zustal ve fronte a gcodeSender by ho pri continue
-                // dostal misto odpovedi na svuj ping - videl by error 7
-                // s maskou koncaku, vyhodnotil by to jako "Arduino did not
-                // ping back" a continue by skoncil driv, nez zacne.
-                myTCPUser.sendData(myUART.listenUART());
+                myTCPUser.sendData( myUART.listenUART());
                 toContinue = true;
                 remeberedReport = curReport;
             }
@@ -1478,10 +1704,6 @@ struct communicator {
             return;
         }
 
-        // Ted uz je tohle opravdu odpoved na ping o radek vys, i pri continue -
-        // report nouzoveho homingu se precte uz v doGcodeTask. Driv tu bylo
-        // "&& !toContinue", coz pri kazdem continue poslalo rizeni do else
-        // vetve a ta bezpodminecne vraci.
         if (curReport.error == 4) {
             std::cout << "[GCODE] Arduino pinged back." << std::endl;
         }
@@ -1509,30 +1731,20 @@ struct communicator {
         buffer << file.rdbuf();
         gcodeDecoder decoder = gcodeDecoder(buffer.str(), startChar);
 
-        // Az tady, ne nahore u otevreni souboru: pocet radku zna teprve
-        // dekoder a nahore jeste neni ani jiste, ze soubor existuje.
         myClock.reset(decoder.totalLines());
 
         if (toContinue) {
             std::cout << "[GCODE] Continuing G-code task from remembered position: X " << remeberedReport.position.x
                       << ", Y " << remeberedReport.position.y << ", Z " << remeberedReport.z << "." << std::endl;
 
-            // Navrat musi byt na tri kroky, ne jedinym prikazem. cmd 5 dela
-            // moveZ a teprve pak move2D, takze jednim prikazem by stroj nejdriv
-            // sjel do rezne hloubky tam, kde zrovna stoji, a v ni prejel nad
-            // zapamatovane misto - pres desku. Behem pauzy se navic smi jogovat,
-            // takze "kde zrovna stoji" muze byt kdekoliv.
-            //
-            // Kazde odeslani ma svoje cteni, aby fronta zustala na jednom
-            // nepreectenem reportu, stejne jako pri normalnim startu.
             myUART.sendBasicCMD(basicCMD(5, {-1,-1}, resumeSafeZ, remeberedReport.speed, remeberedReport.spindlSpeed));
-            myTCPUser.sendData(myUART.listenUART());
+            myTCPUser.sendData( myUART.listenUART());
 
             myUART.sendBasicCMD(basicCMD(5, remeberedReport.position, -1, remeberedReport.speed, -1));
-            myTCPUser.sendData(myUART.listenUART());
+            myTCPUser.sendData( myUART.listenUART());
 
             myUART.sendBasicCMD(basicCMD(5, {-1,-1}, remeberedReport.z, remeberedReport.speed, -1));
-            myTCPUser.sendData(myUART.listenUART());
+            myTCPUser.sendData( myUART.listenUART());
             started = true;
         }
 
@@ -1549,13 +1761,14 @@ struct communicator {
     }
 
 
-    // Bez homingu nema stroj zadnou referenci, takze pozice v reportu je jen
-    // cislo bez vyznamu a relativni pohyb muze skoncit natvrdo v konstrukci.
-    // Odmitnout to uz tady usetri cely UART round-trip a hlavne se uzivatel
-    // dozvi duvod, misto aby dostal zpatky jen odpoved na ping.
     void move(float x, float y, float z, float speed, float spindleSpeed) {
-        myUART.sendBasicCMD(basicCMD(8, {x, y}, z, speed, spindleSpeed));
-        myTCPUser.sendData(myUART.listenUART());
+        if (homed) {
+            myUART.sendBasicCMD(basicCMD(8, {x, y}, z, speed, spindleSpeed));
+            myTCPUser.sendData( myUART.listenUART());
+        }
+        else {
+            myTCPUser.sendData({1, 3});
+        }
     }
 
 
@@ -1607,7 +1820,7 @@ struct communicator {
                 case 2: {
                     myUART.sendBasicCMD(basicCMD(3));
                     homed = true;
-                    myTCPUser.sendData(myUART.listenUART());
+                    myTCPUser.sendData( myUART.listenUART());
                     break;
                 };
                 case 3:
@@ -1621,7 +1834,7 @@ struct communicator {
                 case 4: {
                     myUART.sendBasicCMD(basicCMD(4, {-1,-1}, -1, -1));
                     homed = true;
-                    myTCPUser.sendData(myUART.listenUART());
+                    myTCPUser.sendData( myUART.listenUART());
                     break;
                 }
                 case 5: {
@@ -1644,8 +1857,6 @@ struct communicator {
 
 
 int main() {
-    // Po kolika radcich se zaklada novy soubor. Env je hlavne kvuli testovani,
-    // psat 15000 radku jen kvuli overeni rotace nema smysl.
     long logLimit = 15000;
     const char *limitFromEnv = std::getenv("CNC_LOG_MAX_LINES");
 
@@ -1653,8 +1864,6 @@ int main() {
         logLimit = std::atol(limitFromEnv);
     }
 
-    // Musi byt uplne prvni, jinak by se prvni radky setupu do logu nedostaly.
-    // static kvuli zivotnosti: cout na ten buffer ukazuje az do konce procesu.
     static logTee tee(std::cout.rdbuf(), resolveLogDir(), "nanoCommLog", logLimit);
     std::cout.rdbuf(&tee);
     std::cerr.rdbuf(&tee);

@@ -65,6 +65,62 @@ Priklad: X = 12.34 mm  ->  1234
 
 
 ------------------------------------------------------------------------
+ POTVRZOVANI (UART, obema smery)
+------------------------------------------------------------------------
+
+Kazdy prikaz i kazdy report se pred pouzitim posle zpatky a porovna.
+Nic se neprovede ani nepouzije, dokud druha strana nepotvrdi, ze prijala
+to, co se poslalo. Nahrazuje to drivejsi paritu, ktera hlidala jen cislo
+prikazu, status, error a endstopy - souradnice ne.
+
+Ramec na UARTu:  $$$ <data> \n\n\n
+  Prijemci staci najit aspon jeden '$' - kdyz rusi poskodi prvni jeden
+  nebo dva, ramec se porad pozna. Za '$' parser preskoci vsechno, co neni
+  cislice, a skoci rovnou na prvni cislo. Konec: kdyz se prvni '\n'
+  poskodi, ramec ukonci druhy.
+  (TCP ramec mezi nanoComm a backendem je dal $<json>\n, ten se nemenil.)
+
+Prikaz (nanoComm -> Nano):
+  1. nanoComm posle   $$$cmd;x;y;z;speed;spindleSpeed;\n\n\n   (floaty, %f)
+  2. Nano posle echo  $$$cmd;x;y;z;speed;spindleSpeed;\n\n\n   (cela cisla
+                      x100, zaokrouhlena lround)
+  3. nanoComm porovna (sameCMDs, tolerance 0.05) a posle potvrzeni
+  4. Nano prikaz provede jen na "ano". Na "ne", na timeout (1 s) i na
+     cokoliv, co nevypada jako potvrzeni, ho zahodi bez reportu.
+     nanoComm ho po "ne" posle znovu.
+
+  Tolerance 0.05: v XY je to min nez jeden krok (0.08 mm), takze takova
+  odchylka stroj stejne nepohne jinam. V Z je to ale 10 kroku (krok
+  0.005 mm) - radove tloustka medi na desce (35 um).
+
+Report (Nano -> nanoComm):
+  1. Nano posle report (tvar viz vys, jen s $$$ a \n\n\n)
+  2. nanoComm posle echo  $$$status;error;x;y;z;speed;spindl;endstops;\n\n\n
+                          (x..spindl uz v mm, floaty %f)
+  3. Nano porovna v setinach (sameReports: long(x*100) == lround(echo*100),
+     takze bez tolerance) a posle potvrzeni
+  4. Na "ne" nebo kdyz echo neprijde, posle Nano report znovu - nejvys
+     maxReportAttempts = 3 krat, pak to vzda a ceka na dalsi prikaz.
+     Nano nesmi viset: kdyby nanoComm report necetl, nevzalo by uz nic.
+
+Potvrzeni:  $$$ + 14x stejna cifra + \n\n\n,  tedy 20 B
+            1 = ano, 0 = ne. Rozhoduje vetsina (hasMajority), remiza je ne.
+            Presna delka se nehlida - rusi muze bajt zahodit nebo pridat.
+            Za potvrzeni se ale bere jen ramec BEZ ';' (prikaz i report ho
+            maji vzdy) a na Nanu jen s aspon 10 ciframi 0/1.
+
+Velikosti jsou na obou stranach stejne:
+  largeMessageStandart        80   nejdelsi ramec ma i s $$$ a \n\n\n 66 B
+                                   (echo reportu od nanoComm)
+  conformationMessageStandart 20   potvrzeni
+
+ZNAMA DIRA: kdyz se ztrati cele potvrzeni prikazu, nanoComm si mysli
+"ano", Nano "ne". Nano prikaz neprovede a nanoComm ceka na report, ktery
+neprijde - az do timeoutu v listenUART (error 17). Nic spatneho se
+neprovede, jen se to zastavi.
+
+
+------------------------------------------------------------------------
  STATUS - kdo report poslal
 ------------------------------------------------------------------------
 
@@ -110,6 +166,9 @@ zdroje neco jineho (napr. 6 a 7 se pouzivaji u Nana i u nanoComm jinak).
 7    seriovy port neni otevreny
 10   job skoncil driv, nez dosel soubor: Nano vratilo chybu, nebo uz
      neodpovida. Spindl ani homing uz se neresi, job je pryc.
+17   od Nana neprisel cely report do timeoutu listenUART (600 s,
+     pri opakovani 60 s). Nano je zaseknute, odpojene, nebo se ztratilo
+     potvrzeni prikazu - viz ZNAMA DIRA u potvrzovani.
 11   job dojel az na konec souboru, odeslan cmd 7/255
      -> spindl vypnuty a vsechny osy homovane na max
 
