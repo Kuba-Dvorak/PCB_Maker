@@ -84,7 +84,7 @@
        --fitDivisor: nav a jog cast dohromady meri tolik rem, takze pri
        font-size = 100dvh / fitDivisor vyplni presne vysku okna. Kdyz do jog
        casti neco pribude nebo ubude, meni se tohle jedno cislo. */
-    --fitDivisor: 71;
+    --fitDivisor: 73;
     --jogColWidth: 27rem;        /* krizatko a rychlosti pod nim */
     --jogCanvasMax: 56rem;       /* strop platna, nad nim uz jen centruje */
     --jogCanvasRatio: 1.45;
@@ -109,6 +109,11 @@
 
     --dialogWidth: 26rem;
     --explainMaxWidth: 14rem;    /* popis chyby a statusu v navu */
+    /* Kolik radku popisu je v navu videt. Vyska bunky je z nich spocitana
+       napevno, delsi popis se v ni posouva prstem - nav nesmi rust, jinak
+       odjede krizatko pod palcem. */
+    --navExplainLines: 3;
+    --navLineHeight: 1.25;
 
     /* --- obrazky u rychlosti --------------------------------------------
        Kazdy ma svou promennou, aby je sel JS prebarvovat podle hodnoty
@@ -174,7 +179,22 @@ body {
     background-color: var(--bgColor);
     color: var(--textColor);
     font-family: var(--fontFamily);
+    /* Ovladaci panel, ne clanek: drzeni tlacitka nebo sipky na telefonu
+       jinak oznaci okolni text a vyskoci nad nim menu. */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
+
+/* Do policek se ale psat musi, tam oznacovani zustava. */
+input {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+/* manipulation vypne zoom dvojitym tukem - dve rychla tuknuti na sipku
+   nebo jog jinak priblizi stranku misto dvou kroku. */
+button { touch-action: manipulation; }
 
 /* Formularove prvky pismo po rodici nededi. Dedi se jen rodina, ne
    velikost, aby to neprebilo velikosti nastavene jinde. */
@@ -402,6 +422,10 @@ button:not(.JobsBut, .settingBut, .stepArrow):focus-visible,
 
 /* Sipky krokovani: bez pozadi a bez ramecku, pohyb jen naznaci smer. */
 .stepArrow {
+    /* Pri drzeni se prst vzdycky trochu pohne. Prohlizec by to vzal jako
+       zacatek posouvani stranky, poslal pointercancel a drzeni by se
+       zastavilo - proto sipka zadna gesta nepousti. */
+    touch-action: none;
     padding: 0;
     border: none;
     background: none;
@@ -483,7 +507,8 @@ main {
    veci. */
 .navInfo {
     display: flex;
-    flex-wrap: wrap;
+    /* Zalomeni na druhy radek by nav zdvojnasobilo na vysku. */
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
     justify-self: center;
@@ -557,8 +582,24 @@ main {
     font-size: .95rem;
 }
 
+/* Rozmery bunky nesmi zaviset na textu, ktery do ni prijde: nadpis na jeden
+   radek, popis na pevnou sirku a pevny pocet radku, zbytek se posouva
+   uvnitr. */
+.errorPage h3,
+.statusPage h3 {
+    line-height: var(--navLineHeight);
+    white-space: nowrap;
+}
+
 #errorExplain,
-#statusExplain { max-width: var(--explainMaxWidth); }
+#statusExplain {
+    width: var(--explainMaxWidth);
+    height: calc(var(--navExplainLines) * var(--navLineHeight) * 1em);
+    line-height: var(--navLineHeight);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
 
 #errorSymbol [class*="lucide"],
 #statusSymbol [class*="lucide"] {
@@ -659,18 +700,22 @@ main {
     gap: var(--defaultMargin);
 }
 
-.jogButGrid div {
+/* Jen primy potomek. Obecne ".jogButGrid div" chytalo i prazdne rohove
+   bunky, ty si pak braly gap a padding mrizky a stala se z nich nejsirsi
+   vec ve sloupci - prostredni tlacitka vysla uzsi. minmax(0, ...) drzi
+   vsechny tri stopy stejne i kdyz se obsah nevejde. */
+.jogButGrid > div {
     display: grid;
     aspect-ratio: 1;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
     gap: var(--partsDistances);
     padding: var(--defaultPadding);
 }
 
 /* Krizatko se mackne rukou od stroje, takze co nejvetsi terc. min-width: 0,
    aby se tlacitko nesmrsklo pod svuj obsah a nevylezlo z bunky. */
-.jogButGrid div button {
+.jogButGrid > div > button {
     border: var(--border);
     border-radius: var(--defaultRadius);
 }
@@ -1286,8 +1331,12 @@ body[data-joblist="closed"] .jobListPart { display: none; }
     .errorPage div,
     .statusPage div { font-size: .75rem; }
 
+    /* Sirku tu drzi flex: 1 1 0 u bunek, obe jsou vzdycky stejne siroke. */
     #errorExplain,
-    #statusExplain { max-width: 11rem; }
+    #statusExplain {
+        width: auto;
+        max-width: 11rem;
+    }
 
     #errorSymbol [class*="lucide"],
     #statusSymbol [class*="lucide"] {

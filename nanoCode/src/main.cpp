@@ -709,6 +709,7 @@ struct cnc {
     static constexpr uint8_t maxReportAttempts = 3;
 
     char cmdBuf[largeMessageStandart] = {};
+    char confBuf[conformationMessageStandart] = {};
     nanoReport report;
     basicCMD cmd;
 
@@ -900,6 +901,7 @@ struct cnc {
         if (frameReceived && !MakeSureCMD(cmd)) {
             return;
         }
+
         //Serial.print("Operating instruction");
 
         if ((cmd.speed >= .1) && (cmd.command != 2)) {
@@ -1094,19 +1096,18 @@ struct cnc {
     // Kopie z nanoComm: "$$$", 14x stejna cifra a "\n\n\n", celkem
     // conformationMessageStandart bajtu.
     void sendOnesOrZeros(int toSend) {
-        char message[conformationMessageStandart] = {};
         for (int i = 0; i < conformationMessageStandart; i++) {
             if (i < 3) {
-                message[i] = '$';
+                confBuf[i] = '$';
             }
             else if (i >= conformationMessageStandart - 3) {
-                message[i] = '\n';
+                confBuf[i] = '\n';
             }
             else {
-                message[i] = '0' + toSend;
+                confBuf[i] = '0' + toSend;
             }
         }
-        Serial.write(message, conformationMessageStandart);
+        Serial.write(confBuf, conformationMessageStandart);
     }
 
     //function created by Claude
@@ -1133,7 +1134,7 @@ struct cnc {
     // jineho (timeout, poskozene potvrzeni) znamena, ze se prikaz neprovede.
     bool MakeSureCMD(basicCMD &cmd) {
         memset(cmdBuf, 0, sizeof(cmdBuf));
-        cmd.prepareForRPI(cmdBuf, sizeof(cmdBuf));
+        cmd.prepareForRPI(cmdBuf, largeMessageStandart * sizeof(char));
         Serial.write(cmdBuf, strlen(cmdBuf));
 
         if (!Serial.find('$')) {
@@ -1141,7 +1142,7 @@ struct cnc {
         }
 
         char conformation[conformationMessageStandart] = {};
-        size_t len = Serial.readBytesUntil('\n', conformation, sizeof(conformation) - 1);
+        size_t len = Serial.readBytesUntil('\n', conformation, conformationMessageStandart - 1);
 
         // Cokoliv, co nevypada jako potvrzeni - treba znovu poslany prikaz, kdyz
         // nanoComm echo nedostal - se bere jako "ne", at se omylem nic
@@ -1168,7 +1169,8 @@ struct cnc {
             curChar += 1;
         }
 
-        echoed = nanoReport(fields[0], fields[1], {fields[2], fields[3]}, fields[4], fields[5], fields[6], fields[7]);
+        echoed = nanoReport(fields[0], fields[1], {fields[2], fields[3]}, fields[4],
+            fields[5], fields[6], fields[7]);
         return true;
     }
 
